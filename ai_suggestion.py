@@ -1,15 +1,14 @@
 import sqlite3
-from openai import OpenAI
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 import os
+from openai import OpenAI
 from typing import List, Dict
 
 # SQLite DB接続
 def get_db_connection():
     return sqlite3.connect('data.db')
 
-# OpenAI API設定
+# OpenAI APIクライアント設定
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # カテゴリー別リサーチ取得
 def get_research_by_category(category: str) -> List[Dict]:
@@ -41,9 +40,11 @@ def generate_suggestions(category: str, research_results: List[Dict]) -> str:
             f"   URL: {result['url']}\n\n"
         )
 
-    response = client.chat.completions.create(model="gpt-4o",
-    messages=[{"role": "user", "content": prompt}],
-    max_tokens=600)
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=600
+    )
 
     return response.choices[0].message.content
 
@@ -54,6 +55,7 @@ def main():
 
     cursor.execute("SELECT DISTINCT category FROM research_results")
     available_categories = [row[0] for row in cursor.fetchall()]
+    conn.close()
 
     print("\n===== AI SNS Strategy Suggestion Tool =====\n")
     print("Available categories:")
@@ -97,7 +99,7 @@ def main():
         print("\n===== Generated Suggestions =====\n")
         print(suggestions)
 
-    except ValueError as e:
+    except Exception as e:
         print(f"\nError: {str(e)}")
         print("\nTo set your OpenAI API key, run the following command in your terminal:")
         print("export OPENAI_API_KEY='your-api-key'")
