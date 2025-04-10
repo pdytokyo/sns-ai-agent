@@ -16,6 +16,8 @@ import uuid
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+if not os.getenv("OPENAI_API_KEY"):
+    print("Warning: OPENAI_API_KEY not found in environment variables")
 
 os.makedirs("uploads", exist_ok=True)
 
