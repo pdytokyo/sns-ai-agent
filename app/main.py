@@ -1,7 +1,8 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Header, Security, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from typing import List, Optional
 import sqlite3
 import os
@@ -12,6 +13,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import base64
 import uuid
+import secrets
 
 load_dotenv()
 
@@ -23,7 +25,68 @@ os.makedirs("uploads", exist_ok=True)
 
 app = FastAPI(title="SNS AI Agent Web Prototype")
 
+security = HTTPBasic()
+
+def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = "user"
+    correct_password = "f047be9dc32d4a76824fcbf63823398d"
+    
+    is_username_correct = secrets.compare_digest(credentials.username, correct_username)
+    is_password_correct = secrets.compare_digest(credentials.password, correct_password)
+    
+    if not (is_username_correct and is_password_correct):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    
+    return credentials.username
+
+class AuthMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        
+        headers = dict(scope.get("headers", []))
+        auth_header = headers.get(b"authorization", b"").decode("utf-8")
+        
+        if not auth_header.startswith("Basic "):
+            return await self.handle_unauthorized(scope, receive, send)
+        
+        try:
+            auth_data = auth_header.replace("Basic ", "")
+            decoded = base64.b64decode(auth_data).decode("utf-8")
+            username, password = decoded.split(":")
+            
+            if username != "user" or password != "f047be9dc32d4a76824fcbf63823398d":
+                return await self.handle_unauthorized(scope, receive, send)
+                
+        except Exception:
+            return await self.handle_unauthorized(scope, receive, send)
+        
+        return await self.app(scope, receive, send)
+    
+    async def handle_unauthorized(self, scope, receive, send):
+        await send({
+            "type": "http.response.start",
+            "status": 401,
+            "headers": [
+                (b"content-type", b"text/plain"),
+                (b"www-authenticate", b"Basic realm=SNS AI Agent"),
+            ],
+        })
+        await send({
+            "type": "http.response.body",
+            "body": b"Unauthorized",
+        })
+
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+app.add_middleware(AuthMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,6 +95,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = "user"
+    correct_password = "f047be9dc32d4a76824fcbf63823398d"
+    
+    is_username_correct = secrets.compare_digest(credentials.username, correct_username)
+    is_password_correct = secrets.compare_digest(credentials.password, correct_password)
+    
+    if not (is_username_correct and is_password_correct):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    
+    return credentials.username
 
 def get_db():
     conn = sqlite3.connect("data.db")
@@ -474,7 +553,7 @@ async def get_options():
     }
 
 @app.get("/", response_class=RedirectResponse)
-async def root():
+async def root(username: str = Depends(verify_credentials)):
     """ルートエンドポイント - 静的ファイルにリダイレクト"""
     return RedirectResponse(url="/static/index.html")
 
