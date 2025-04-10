@@ -52,20 +52,32 @@ class AuthMiddleware:
             return await self.app(scope, receive, send)
         
         headers = dict(scope.get("headers", []))
-        auth_header = headers.get(b"authorization", b"").decode("utf-8") if b"authorization" in headers else ""
+        auth_header = None
         
-        if not auth_header.startswith("Basic "):
+        for key, value in headers.items():
+            if key.lower() == b"authorization":
+                auth_header = value.decode("utf-8")
+                break
+        
+        if not auth_header or not auth_header.startswith("Basic "):
             return await self.handle_unauthorized(scope, receive, send)
         
         try:
             auth_data = auth_header.replace("Basic ", "")
             decoded = base64.b64decode(auth_data).decode("utf-8")
-            username, password = decoded.split(":")
+            username, password = decoded.split(":", 1)
             
-            if username != "user" or password != "f047be9dc32d4a76824fcbf63823398d":
+            print(f"Auth attempt - Username: {username}, Password: {password}")
+            
+            correct_username = "user"
+            correct_password = "f047be9dc32d4a76824fcbf63823398d"
+            
+            if username != correct_username or password != correct_password:
+                print(f"Auth failed - Username match: {username == correct_username}, Password match: {password == correct_password}")
                 return await self.handle_unauthorized(scope, receive, send)
                 
-        except Exception:
+        except Exception as e:
+            print(f"Auth error: {str(e)}")
             return await self.handle_unauthorized(scope, receive, send)
         
         return await self.app(scope, receive, send)
@@ -76,7 +88,7 @@ class AuthMiddleware:
             "status": 401,
             "headers": [
                 (b"content-type", b"text/plain"),
-                (b"www-authenticate", b"Basic realm=SNS AI Agent"),
+                (b"www-authenticate", b'Basic realm="SNS AI Agent"'),
             ],
         })
         await send({
