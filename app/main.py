@@ -820,6 +820,124 @@ async def get_video_info(
         "silent_segments": processing_info["silent_segments"]
     }
 
+@app.post("/upload_video/", response_model=dict)
+async def upload_video(
+    file: UploadFile = File(...),
+    client_id: int = Form(...),
+    aspect_ratio: str = Form("16:9"),
+    margin_seconds: float = Form(0.5),
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """動画をアップロードし、アスペクト比とマージン設定を保存するエンドポイント"""
+    try:
+        os.makedirs("uploaded_videos", exist_ok=True)
+        
+        file_extension = os.path.splitext(file.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_path = os.path.join("uploaded_videos", unique_filename)
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO uploads (filename, original_filename, aspect_ratio, margin_seconds, client_id) VALUES (?, ?, ?, ?, ?)",
+            (unique_filename, file.filename, aspect_ratio, margin_seconds, client_id)
+        )
+        conn.commit()
+        upload_id = cursor.lastrowid
+        
+        return {
+            "success": True,
+            "id": upload_id,
+            "filename": unique_filename,
+            "original_filename": file.filename,
+            "aspect_ratio": aspect_ratio,
+            "margin_seconds": margin_seconds,
+            "client_id": client_id,
+            "file_path": file_path
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"動画アップロード中にエラーが発生しました: {str(e)}")
+
+@app.post("/process_uploaded_video/", response_model=dict)
+async def process_uploaded_video(
+    upload_id: int = Form(...),
+    silence_threshold: float = Form(0.02),
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """アップロードされた動画を処理するエンドポイント"""
+    try:
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT id, filename, aspect_ratio, margin_seconds, client_id FROM uploads WHERE id = ?",
+            (upload_id,)
+        )
+        upload = cursor.fetchone()
+        
+        if not upload:
+            raise HTTPException(status_code=404, detail="アップロードされた動画が見つかりません")
+        
+        upload_id, filename, aspect_ratio, margin_seconds, client_id = upload
+        
+        input_path = os.path.join("uploaded_videos", filename)
+        
+        if not os.path.exists(input_path):
+            raise HTTPException(status_code=404, detail="動画ファイルが見つかりません")
+        
+        result = process_video(
+            input_path=input_path,
+            aspect_ratio=aspect_ratio,
+            silence_threshold=silence_threshold,
+            start_margin=margin_seconds,
+            end_margin=margin_seconds
+        )
+        
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS processed_videos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            upload_id INTEGER,
+            client_id INTEGER,
+            output_path TEXT,
+            aspect_ratio TEXT,
+            processing_info TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (upload_id) REFERENCES uploads (id),
+            FOREIGN KEY (client_id) REFERENCES clients (id)
+        )
+        ''')
+        
+        cursor.execute(
+            "INSERT INTO processed_videos (upload_id, client_id, output_path, aspect_ratio, processing_info) VALUES (?, ?, ?, ?, ?)",
+            (
+                upload_id,
+                client_id,
+                result["output_path"],
+                aspect_ratio,
+                json.dumps(result)
+            )
+        )
+        conn.commit()
+        processed_id = cursor.lastrowid
+        
+        output_rel_path = result["output_path"].replace("app/", "/")
+        
+        return {
+            "success": True,
+            "id": processed_id,
+            "upload_id": upload_id,
+            "client_id": client_id,
+            "output_path": output_rel_path,
+            "preview_url": f"/static/preview.html?video={output_rel_path}",
+            "aspect_ratio": aspect_ratio,
+            "original_duration": result["original_duration"],
+            "processed_duration": result["processed_duration"],
+            "reduction_percentage": result["reduction_percentage"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"動画処理中にエラーが発生しました: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -32,9 +32,35 @@ def initialize_databases():
         )
         ''')
         
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS uploads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT NOT NULL,
+            original_filename TEXT,
+            uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            aspect_ratio TEXT,
+            margin_seconds REAL,
+            client_id INTEGER
+        )
+        ''')
+        
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS processed_videos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            upload_id INTEGER,
+            client_id INTEGER,
+            output_path TEXT,
+            aspect_ratio TEXT,
+            processing_info TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (upload_id) REFERENCES uploads (id),
+            FOREIGN KEY (client_id) REFERENCES clients (id)
+        )
+        ''')
+        
         conn.commit()
         conn.close()
-        print("Successfully initialized data.db with competitor_scripts table")
+        print("Successfully initialized data.db with required tables")
     except Exception as e:
         print(f"Error initializing data.db: {str(e)}")
 

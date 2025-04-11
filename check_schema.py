@@ -25,7 +25,7 @@ def main():
         tables = [table[0] for table in cursor.fetchall()]
         print(f"Tables in {db_file}: {', '.join(tables)}")
         
-        tables_to_check = ["detailed_success_cases", "copyright_free_audio", "competitor_scripts"]
+        tables_to_check = ["detailed_success_cases", "copyright_free_audio", "competitor_scripts", "uploads", "processed_videos"]
         
         for table in tables_to_check:
             if check_table_exists(cursor, table):
