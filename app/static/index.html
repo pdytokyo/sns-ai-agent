@@ -51,30 +51,39 @@
         }
         .selected {
             border: 2px solid #6c5ce7;
-            background-color: #f0edff;
+            box-shadow: 0 0 10px rgba(108, 92, 231, 0.3);
+        }
+        .progress {
+            height: 30px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .progress-bar {
+            font-size: 16px;
+            line-height: 30px;
+        }
+        textarea {
+            min-height: 150px;
         }
         .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(108, 92, 231, 0.3);
-            border-radius: 50%;
-            border-top-color: #6c5ce7;
-            animation: spin 1s ease-in-out infinite;
-            margin-right: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 class="text-center my-4">SNS AI Agent - Webプロトタイプ</h1>
+        <h1 class="text-center my-4">SNS AI Agent</h1>
         
-        <!-- ステップ表示 -->
-        <div class="progress mb-4" style="height: 30px;">
-            <div id="progress-bar" class="progress-bar bg-primary" role="progressbar" style="width: 20%;" aria-valuenow="20" aria-valuemin="0" aria-valuemax="100">ステップ 1/5</div>
+        <!-- プログレスバー -->
+        <div class="progress">
+            <div id="progress-bar" class="progress-bar bg-primary" role="progressbar" style="width: 20%" aria-valuenow="20" aria-valuemin="0" aria-valuemax="100">ステップ 1/5</div>
         </div>
         
         <!-- ステップ1: クライアント情報 -->
@@ -97,39 +106,39 @@
             </div>
         </div>
         
-        <!-- ステップ2: 選択肢 -->
+        <!-- ステップ2: ターゲット属性・運用目的・プラットフォーム選択 -->
         <div id="step2" class="card hidden">
             <div class="card-header">
-                ステップ 2: ターゲット属性・運用目的・プラットフォームの選択
+                ステップ 2: ターゲット属性・運用目的・プラットフォーム選択
             </div>
             <div class="card-body">
                 <form id="selectionsForm">
                     <div class="row">
                         <div class="col-md-4">
                             <h5>ターゲット属性</h5>
-                            <div id="targetAttributesContainer" class="mb-3">
-                                <!-- 動的に生成される -->
+                            <div id="targetAttributesContainer">
+                                <!-- APIから取得したチェックボックスがここに表示されます -->
                             </div>
                             <div class="mb-3">
                                 <label for="interestsInput" class="form-label">興味関心（カンマ区切りで入力）</label>
-                                <input type="text" class="form-control" id="interestsInput" placeholder="例: 旅行,料理,スポーツ,音楽">
+                                <input type="text" class="form-control" id="interestsInput" placeholder="例: 旅行,料理,音楽">
                             </div>
                         </div>
                         <div class="col-md-4">
                             <h5>運用目的</h5>
-                            <div id="operationalPurposesContainer" class="mb-3">
-                                <!-- 動的に生成される -->
+                            <div id="operationalPurposesContainer">
+                                <!-- APIから取得したチェックボックスがここに表示されます -->
                             </div>
                         </div>
                         <div class="col-md-4">
                             <h5>プラットフォーム</h5>
-                            <div id="platformsContainer" class="mb-3">
-                                <!-- 動的に生成される -->
+                            <div id="platformsContainer">
+                                <!-- APIから取得したチェックボックスがここに表示されます -->
                             </div>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-between mt-3">
-                        <button type="button" class="btn btn-secondary" onclick="prevStep(1)">戻る</button>
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-secondary me-2" onclick="prevStep(1)">戻る</button>
                         <button type="submit" class="btn btn-primary">次へ</button>
                     </div>
                 </form>
@@ -146,13 +155,12 @@
                     <div class="mb-3">
                         <label for="fileUpload" class="form-label">動画・テキスト・PDFをアップロード</label>
                         <input class="form-control" type="file" id="fileUpload" accept="video/*,text/*,.pdf">
-                        <div class="form-text">※ファイルのアップロードは任意です</div>
                     </div>
-                    <div id="uploadedFiles" class="mb-3">
+                    <div id="uploadedFiles">
                         <!-- アップロードされたファイル一覧 -->
                     </div>
-                    <div class="d-flex justify-content-between">
-                        <button type="button" class="btn btn-secondary" onclick="prevStep(2)">戻る</button>
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-secondary me-2" onclick="prevStep(2)">戻る</button>
                         <button type="button" class="btn btn-primary" onclick="nextStep(4)">次へ</button>
                     </div>
                 </form>
@@ -162,19 +170,23 @@
         <!-- ステップ4: プロフィール生成 -->
         <div id="step4" class="card hidden">
             <div class="card-header">
-                ステップ 4: アカウント名とプロフィール生成
+                ステップ 4: プロフィール生成
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <button id="generateProfileBtn" class="btn btn-primary mb-3">
-                        <span>プロフィールを生成</span>
-                    </button>
-                    <div id="profilesContainer">
-                        <!-- 生成されたプロフィール一覧 -->
+                    <button id="generateProfileBtn" class="btn btn-primary mb-3">プロフィールを生成</button>
+                    <div id="profileLoading" class="loading hidden">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="ms-2">生成中...</span>
                     </div>
                 </div>
-                <div class="d-flex justify-content-between">
-                    <button type="button" class="btn btn-secondary" onclick="prevStep(3)">戻る</button>
+                <div id="profilesContainer">
+                    <!-- 生成されたプロフィールがここに表示されます -->
+                </div>
+                <div class="mt-3">
+                    <button type="button" class="btn btn-secondary me-2" onclick="prevStep(3)">戻る</button>
                     <button type="button" class="btn btn-primary" onclick="nextStep(5)">次へ</button>
                 </div>
             </div>
@@ -187,15 +199,19 @@
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <button id="generateScriptBtn" class="btn btn-primary mb-3">
-                        <span>台本を生成</span>
-                    </button>
-                    <div id="scriptsContainer">
-                        <!-- 生成された台本一覧 -->
+                    <button id="generateScriptBtn" class="btn btn-primary mb-3">台本を生成</button>
+                    <div id="scriptLoading" class="loading hidden">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="ms-2">生成中...</span>
                     </div>
                 </div>
-                <div class="d-flex justify-content-between">
-                    <button type="button" class="btn btn-secondary" onclick="prevStep(4)">戻る</button>
+                <div id="scriptsContainer">
+                    <!-- 生成された台本がここに表示されます -->
+                </div>
+                <div class="mt-3">
+                    <button type="button" class="btn btn-secondary me-2" onclick="prevStep(4)">戻る</button>
                     <button type="button" class="btn btn-primary" onclick="finishProcess()">完了</button>
                 </div>
             </div>
@@ -220,6 +236,13 @@
         let selectedProfileId = null;
         let selectedScriptId = null;
         
+        // 認証情報
+        const username = "user";
+        const password = "df1e9b9a329e6d7367a052bc2d1ee256";
+        
+        // Base64エンコードされた認証情報
+        const authHeader = 'Basic ' + btoa(username + ':' + password);
+        
         // ページ読み込み時の処理
         document.addEventListener('DOMContentLoaded', function() {
             // オプションを取得して表示
@@ -236,7 +259,11 @@
         // APIからオプションを取得
         async function fetchOptions() {
             try {
-                const response = await fetch('/options');
+                const response = await fetch('/options', {
+                    headers: {
+                        'Authorization': authHeader
+                    }
+                });
                 const data = await response.json();
                 
                 // ターゲット属性のチェックボックスを生成
@@ -283,7 +310,8 @@
                 const response = await fetch('/clients/', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': authHeader
                     },
                     body: JSON.stringify({
                         name: name,
@@ -355,6 +383,9 @@
             try {
                 const response = await fetch('/selections/', {
                     method: 'POST',
+                    headers: {
+                        'Authorization': authHeader
+                    },
                     body: formData
                 });
                 
@@ -384,6 +415,9 @@
             try {
                 const response = await fetch('/upload/', {
                     method: 'POST',
+                    headers: {
+                        'Authorization': authHeader
+                    },
                     body: formData
                 });
                 
@@ -396,9 +430,6 @@
                         <strong>${data.original_filename}</strong> がアップロードされました
                     </div>
                 `;
-                
-                // ファイル入力をリセット
-                document.getElementById('fileUpload').value = '';
             } catch (error) {
                 console.error('ファイルアップロードエラー:', error);
                 alert('ファイルのアップロードに失敗しました。もう一度お試しください。');
@@ -407,13 +438,14 @@
         
         // プロフィール生成
         async function generateProfile() {
-            const button = document.getElementById('generateProfileBtn');
-            const buttonText = button.querySelector('span');
-            const originalText = buttonText.textContent;
+            if (!clientId) {
+                alert('クライアント情報が登録されていません。ステップ1からやり直してください。');
+                return;
+            }
             
-            // ボタンを無効化して読み込み表示
-            button.disabled = true;
-            buttonText.innerHTML = '<div class="loading"></div>生成中...';
+            // ローディング表示
+            document.getElementById('profileLoading').classList.remove('hidden');
+            document.getElementById('generateProfileBtn').disabled = true;
             
             const formData = new FormData();
             formData.append('client_id', clientId);
@@ -421,59 +453,67 @@
             try {
                 const response = await fetch('/generate-profile/', {
                     method: 'POST',
+                    headers: {
+                        'Authorization': authHeader
+                    },
                     body: formData
                 });
                 
                 const data = await response.json();
                 
-                // プロフィール一覧に追加
+                // プロフィールカードを作成
                 const profilesContainer = document.getElementById('profilesContainer');
                 const profileCard = document.createElement('div');
                 profileCard.className = 'profile-card';
-                profileCard.dataset.id = data.id;
+                profileCard.dataset.profileId = data.id;
+                
                 profileCard.innerHTML = `
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5>プロフィール #${profilesContainer.children.length + 1}</h5>
-                        <button class="btn btn-sm btn-outline-primary select-profile-btn">選択</button>
-                    </div>
                     <div class="mb-3">
                         <label class="form-label">アカウント名</label>
                         <input type="text" class="form-control account-name" value="${data.account_name}">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">プロフィール文</label>
-                        <textarea class="form-control profile-text" rows="4">${data.profile_text}</textarea>
+                        <label class="form-label">プロフィール</label>
+                        <textarea class="form-control profile-text">${data.profile_text}</textarea>
                     </div>
-                    <button class="btn btn-sm btn-outline-success save-profile-btn">保存</button>
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-primary select-profile-btn">選択</button>
+                        <button class="btn btn-success save-profile-btn">保存</button>
+                    </div>
                 `;
                 
-                profilesContainer.appendChild(profileCard);
+                profilesContainer.prepend(profileCard);
                 
                 // イベントリスナーを追加
-                const selectBtn = profileCard.querySelector('.select-profile-btn');
-                selectBtn.addEventListener('click', () => selectProfile(data.id, profileCard));
+                profileCard.querySelector('.select-profile-btn').addEventListener('click', function() {
+                    selectProfile(data.id, profileCard);
+                });
                 
-                const saveBtn = profileCard.querySelector('.save-profile-btn');
-                saveBtn.addEventListener('click', () => saveProfile(data.id, profileCard));
+                profileCard.querySelector('.save-profile-btn').addEventListener('click', function() {
+                    saveProfile(data.id, profileCard);
+                });
                 
             } catch (error) {
                 console.error('プロフィール生成エラー:', error);
                 alert('プロフィールの生成に失敗しました。もう一度お試しください。');
             } finally {
-                // ボタンを元に戻す
-                button.disabled = false;
-                buttonText.textContent = originalText;
+                // ローディング非表示
+                document.getElementById('profileLoading').classList.add('hidden');
+                document.getElementById('generateProfileBtn').disabled = false;
             }
         }
         
         // プロフィール選択
         async function selectProfile(profileId, profileCard) {
-            const formData = new FormData();
-            formData.append('client_id', clientId);
-            
             try {
+                const formData = new FormData();
+                formData.append('client_id', clientId);
+                
                 const response = await fetch(`/select-profile/${profileId}`, {
                     method: 'POST',
+                    headers: {
+                        'Authorization': authHeader
+                    },
                     body: formData
                 });
                 
@@ -502,7 +542,8 @@
                 const response = await fetch(`/profiles/${profileId}`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': authHeader
                     },
                     body: JSON.stringify({
                         account_name: accountName,
@@ -521,13 +562,14 @@
         
         // 台本生成
         async function generateScript() {
-            const button = document.getElementById('generateScriptBtn');
-            const buttonText = button.querySelector('span');
-            const originalText = buttonText.textContent;
+            if (!clientId) {
+                alert('クライアント情報が登録されていません。ステップ1からやり直してください。');
+                return;
+            }
             
-            // ボタンを無効化して読み込み表示
-            button.disabled = true;
-            buttonText.innerHTML = '<div class="loading"></div>生成中...';
+            // ローディング表示
+            document.getElementById('scriptLoading').classList.remove('hidden');
+            document.getElementById('generateScriptBtn').disabled = true;
             
             const formData = new FormData();
             formData.append('client_id', clientId);
@@ -535,55 +577,63 @@
             try {
                 const response = await fetch('/generate-script/', {
                     method: 'POST',
+                    headers: {
+                        'Authorization': authHeader
+                    },
                     body: formData
                 });
                 
                 const data = await response.json();
                 
-                // 台本一覧に追加
+                // 台本カードを作成
                 const scriptsContainer = document.getElementById('scriptsContainer');
                 const scriptCard = document.createElement('div');
                 scriptCard.className = 'script-card';
-                scriptCard.dataset.id = data.id;
+                scriptCard.dataset.scriptId = data.id;
+                
                 scriptCard.innerHTML = `
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5>台本 #${scriptsContainer.children.length + 1}</h5>
-                        <button class="btn btn-sm btn-outline-primary select-script-btn">選択</button>
-                    </div>
                     <div class="mb-3">
                         <label class="form-label">台本</label>
-                        <textarea class="form-control script-text" rows="8">${data.script_text}</textarea>
+                        <textarea class="form-control script-text">${data.script_text}</textarea>
                     </div>
-                    <button class="btn btn-sm btn-outline-success save-script-btn">保存</button>
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-primary select-script-btn">選択</button>
+                        <button class="btn btn-success save-script-btn">保存</button>
+                    </div>
                 `;
                 
-                scriptsContainer.appendChild(scriptCard);
+                scriptsContainer.prepend(scriptCard);
                 
                 // イベントリスナーを追加
-                const selectBtn = scriptCard.querySelector('.select-script-btn');
-                selectBtn.addEventListener('click', () => selectScript(data.id, scriptCard));
+                scriptCard.querySelector('.select-script-btn').addEventListener('click', function() {
+                    selectScript(data.id, scriptCard);
+                });
                 
-                const saveBtn = scriptCard.querySelector('.save-script-btn');
-                saveBtn.addEventListener('click', () => saveScript(data.id, scriptCard));
+                scriptCard.querySelector('.save-script-btn').addEventListener('click', function() {
+                    saveScript(data.id, scriptCard);
+                });
                 
             } catch (error) {
                 console.error('台本生成エラー:', error);
                 alert('台本の生成に失敗しました。もう一度お試しください。');
             } finally {
-                // ボタンを元に戻す
-                button.disabled = false;
-                buttonText.textContent = originalText;
+                // ローディング非表示
+                document.getElementById('scriptLoading').classList.add('hidden');
+                document.getElementById('generateScriptBtn').disabled = false;
             }
         }
         
         // 台本選択
         async function selectScript(scriptId, scriptCard) {
-            const formData = new FormData();
-            formData.append('client_id', clientId);
-            
             try {
+                const formData = new FormData();
+                formData.append('client_id', clientId);
+                
                 const response = await fetch(`/select-script/${scriptId}`, {
                     method: 'POST',
+                    headers: {
+                        'Authorization': authHeader
+                    },
                     body: formData
                 });
                 
@@ -611,7 +661,8 @@
                 const response = await fetch(`/scripts/${scriptId}`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': authHeader
                     },
                     body: JSON.stringify({
                         script_text: scriptText
