@@ -27,5 +27,17 @@ CREATE TABLE IF NOT EXISTS competitor_scripts (
 )
 ''')
 
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS uploads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename TEXT NOT NULL,
+    original_filename TEXT,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    aspect_ratio TEXT,
+    margin_seconds REAL,
+    client_id INTEGER
+)
+''')
+
 conn.commit()
 conn.close()
