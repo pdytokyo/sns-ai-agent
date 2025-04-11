@@ -1,2 +1,24 @@
 .DS_Store
 data_backup.db
+data.db
+app.db
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Database files
+*.db
+app/*.db
+
+# Uploaded files
+app/uploads/*
+!app/uploads/.gitkeep
+
+# Environment variables
+.env.local
+
+# Virtual environment
+venv/
+env/
