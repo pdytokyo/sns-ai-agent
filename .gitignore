@@ -22,3 +22,14 @@ app/uploads/*
 # Virtual environment
 venv/
 env/
+
+# Development files
+app/main_*.py
+!app/main_final.py
+!app/main_final_integration.py
+!app/main_public_no_auth.py
+!app/main_public_no_auth_integration.py
+!app/main_enhanced_routes.py
+
+# Test files
+test_*.py
