@@ -236,12 +236,8 @@
         let selectedProfileId = null;
         let selectedScriptId = null;
         
-        // 認証情報
-        const username = "user";
-        const password = "df1e9b9a329e6d7367a052bc2d1ee256";
-        
-        // Base64エンコードされた認証情報
-        const authHeader = 'Basic ' + btoa(username + ':' + password);
+        // APIのベースURL
+        const apiBaseUrl = window.location.origin;
         
         // ページ読み込み時の処理
         document.addEventListener('DOMContentLoaded', function() {
@@ -259,11 +255,7 @@
         // APIからオプションを取得
         async function fetchOptions() {
             try {
-                const response = await fetch('/options', {
-                    headers: {
-                        'Authorization': authHeader
-                    }
-                });
+                const response = await fetch(`${apiBaseUrl}/options`);
                 const data = await response.json();
                 
                 // ターゲット属性のチェックボックスを生成
@@ -307,11 +299,10 @@
             const email = document.getElementById('clientEmail').value;
             
             try {
-                const response = await fetch('/clients/', {
+                const response = await fetch(`${apiBaseUrl}/clients/`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': authHeader
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         name: name,
@@ -381,11 +372,8 @@
             });
             
             try {
-                const response = await fetch('/selections/', {
+                const response = await fetch(`${apiBaseUrl}/selections/`, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': authHeader
-                    },
                     body: formData
                 });
                 
@@ -413,11 +401,8 @@
             formData.append('file', file);
             
             try {
-                const response = await fetch('/upload/', {
+                const response = await fetch(`${apiBaseUrl}/upload/`, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': authHeader
-                    },
                     body: formData
                 });
                 
@@ -451,11 +436,8 @@
             formData.append('client_id', clientId);
             
             try {
-                const response = await fetch('/generate-profile/', {
+                const response = await fetch(`${apiBaseUrl}/generate-profile/`, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': authHeader
-                    },
                     body: formData
                 });
                 
@@ -509,11 +491,8 @@
                 const formData = new FormData();
                 formData.append('client_id', clientId);
                 
-                const response = await fetch(`/select-profile/${profileId}`, {
+                const response = await fetch(`${apiBaseUrl}/select-profile/${profileId}`, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': authHeader
-                    },
                     body: formData
                 });
                 
@@ -539,11 +518,10 @@
             const profileText = profileCard.querySelector('.profile-text').value;
             
             try {
-                const response = await fetch(`/profiles/${profileId}`, {
+                const response = await fetch(`${apiBaseUrl}/profiles/${profileId}`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': authHeader
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         account_name: accountName,
@@ -575,11 +553,8 @@
             formData.append('client_id', clientId);
             
             try {
-                const response = await fetch('/generate-script/', {
+                const response = await fetch(`${apiBaseUrl}/generate-script/`, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': authHeader
-                    },
                     body: formData
                 });
                 
@@ -629,11 +604,8 @@
                 const formData = new FormData();
                 formData.append('client_id', clientId);
                 
-                const response = await fetch(`/select-script/${scriptId}`, {
+                const response = await fetch(`${apiBaseUrl}/select-script/${scriptId}`, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': authHeader
-                    },
                     body: formData
                 });
                 
@@ -658,11 +630,10 @@
             const scriptText = scriptCard.querySelector('.script-text').value;
             
             try {
-                const response = await fetch(`/scripts/${scriptId}`, {
+                const response = await fetch(`${apiBaseUrl}/scripts/${scriptId}`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': authHeader
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         script_text: scriptText
