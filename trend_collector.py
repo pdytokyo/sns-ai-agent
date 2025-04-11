@@ -1,13 +1,9 @@
-import os
 import json
 import sqlite3
 import requests
 from datetime import datetime
 from pytrends.request import TrendReq
-from dotenv import load_dotenv
-
-load_dotenv()
-DB_PATH = "data.db"
+from config import DB_PATH, YOUTUBE_API_KEY
 
 def collect_google_trends(region="JP", limit=10):
     """Google Trendsから上位トレンドを収集"""
@@ -38,12 +34,11 @@ def collect_google_trends(region="JP", limit=10):
 def collect_youtube_trending(region="JP", limit=10):
     """YouTube Trendingから上位動画のキーワードを収集"""
     try:
-        api_key = os.getenv("YOUTUBE_API_KEY", "")
-        if not api_key:
+        if not YOUTUBE_API_KEY:
             print("YouTube API Keyが設定されていません")
             return []
         
-        url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&regionCode={region}&maxResults={limit}&key={api_key}"
+        url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&regionCode={region}&maxResults={limit}&key={YOUTUBE_API_KEY}"
         response = requests.get(url)
         
         if response.status_code != 200:

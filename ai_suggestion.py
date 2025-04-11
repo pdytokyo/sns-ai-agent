@@ -1,17 +1,11 @@
-import os
 import sqlite3
 from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
-
-DB_PATH = "data.db"
+from config import DB_PATH, OPENAI_API_KEY
 
 def get_api_key():
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
+    if not OPENAI_API_KEY:
         raise ValueError("OPENAI_API_KEY not found in environment variables")
-    return api_key
+    return OPENAI_API_KEY
 
 def get_available_categories():
     conn = sqlite3.connect(DB_PATH)
