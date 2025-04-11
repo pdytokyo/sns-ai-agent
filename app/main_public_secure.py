@@ -30,6 +30,7 @@ openai.api_key = openai_api_key
 
 AUTH_USERNAME = os.getenv("AUTH_USERNAME", "admin")
 AUTH_PASSWORD = os.getenv("AUTH_PASSWORD", "password123")
+print(f"Using authentication credentials: {AUTH_USERNAME}/{AUTH_PASSWORD}")
 
 app = FastAPI()
 
