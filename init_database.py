@@ -33,6 +33,30 @@ def initialize_databases():
         ''')
         
         cursor.execute('''
+        CREATE TABLE IF NOT EXISTS weekly_trends (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            keyword TEXT,
+            platform TEXT,
+            region TEXT,
+            collected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS competitor_analysis (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform TEXT,
+            video_url TEXT,
+            title TEXT,
+            view_count INTEGER,
+            comment_count INTEGER,
+            engagement_rate REAL,
+            top_phrases TEXT,
+            collected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        cursor.execute('''
         CREATE TABLE IF NOT EXISTS uploads (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             filename TEXT NOT NULL,
