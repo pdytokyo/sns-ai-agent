@@ -1,122 +1,125 @@
 # SNS AI Agent
 
-SNS AI Agent is a web application that helps users create social media content by leveraging AI to generate profiles, scripts, and process videos.
+SNS AI Agent は、AIを活用してプロフィール、スクリプト、動画処理を生成することで、ユーザーがソーシャルメディアコンテンツを作成するのを支援するWebアプリケーションです。
 
-## Features
+## 機能
 
-- Target attribute, operational purpose, and platform selection
-- File upload (video, text, PDF)
-- AI-generated account names and profile texts
-- AI-generated scripts with unlimited generation
-- YouTube transcript analysis
-- Detailed success case database
-- Copyright-free audio library
-- Video processing with aspect ratio adjustment
+- ターゲット属性、運用目的、プラットフォームの選択（複数選択可）
+- ファイルアップロード（動画、テキスト、PDF）
+- AIによるアカウント名とプロフィールテキストの生成
+- AIによるスクリプト生成（無制限生成可能）
+- YouTube動画の字幕分析
+- 詳細な成功事例データベース
+- 著作権フリーの音声ライブラリ
+- アスペクト比調整機能付き動画処理
 
-## Installation
+## インストール方法
 
-1. Clone the repository:
+1. リポジトリをクローン:
 ```bash
 git clone https://github.com/pdytokyo/sns-ai-agent.git
 cd sns-ai-agent
 ```
 
-2. Install dependencies:
+2. Python仮想環境を作成して有効化:
 ```bash
-pip install -r requirements_enhanced.txt
+python -m venv venv
+source venv/bin/activate  # Linuxの場合
+# または
+venv\Scripts\activate  # Windowsの場合
 ```
 
-3. Create a `.env` file with your OpenAI API key:
-```
-OPENAI_API_KEY=your_api_key_here
+3. 依存関係をインストール:
+```bash
+pip install -r requirements.txt
 ```
 
-## Running the Application
+4. `.env` ファイルを作成してOpenAI APIキーを設定:
+```
+OPENAI_API_KEY=<YOUR_API_KEY>
+```
 
-To run the application locally without authentication:
+## アプリケーションの実行
+
+アプリケーションをローカルで実行するには:
 
 ```bash
-cd app
-python main_final_integration.py
+uvicorn app.main_final_integration:app --reload
 ```
 
-The application will be available at http://localhost:8000
+アプリケーションは http://localhost:8000 で利用可能になります。
 
-## API Endpoints
+## API エンドポイント
 
-### Client Management
-- `POST /api/clients` - Create a new client
-- `POST /api/selections` - Store client selections
-- `POST /api/uploads/{client_id}` - Upload files
+### クライアント管理
+- `POST /api/clients` - 新しいクライアントを作成
+- `POST /api/selections` - クライアントの選択を保存
+- `POST /api/uploads/{client_id}` - ファイルをアップロード
 
-### Profile Generation
-- `GET /api/generate-profiles/{client_id}` - Generate AI profiles
-- `PUT /api/profiles/{profile_id}` - Update a profile
-- `PUT /api/profiles/{profile_id}/select` - Select a profile
+### プロフィール生成
+- `GET /api/generate-profiles/{client_id}` - AIプロフィールを生成
+- `PUT /api/profiles/{profile_id}` - プロフィールを更新
+- `PUT /api/profiles/{profile_id}/select` - プロフィールを選択
 
-### Script Generation
-- `GET /api/generate-scripts/{client_id}` - Generate AI scripts
-- `PUT /api/scripts/{script_id}` - Update a script
-- `PUT /api/scripts/{script_id}/select` - Select a script
+### スクリプト生成
+- `GET /api/generate-scripts/{client_id}` - AIスクリプトを生成
+- `PUT /api/scripts/{script_id}` - スクリプトを更新
+- `PUT /api/scripts/{script_id}/select` - スクリプトを選択
 
-### Audio Library
-- `GET /api/audio-library` - Get copyright-free audio tracks
-- `GET /api/audio/{audio_id}` - Stream an audio file
+### 拡張API
+- `POST /generate-profile/` - クライアントのプロフィールを生成
+- `POST /generate-script/` - クライアントのスクリプトを生成
+- `GET /profiles/{client_id}` - クライアントのすべてのプロフィールを取得
+- `GET /scripts/{client_id}` - クライアントのすべてのスクリプトを取得
+- `POST /profiles/{profile_id}/select` - プロフィールを選択
+- `POST /scripts/{script_id}/select` - スクリプトを選択
 
-### Video Processing
-- `POST /api/video-processing/{client_id}` - Process a video
-- `GET /api/video/{result_id}` - Stream a processed video
+### 音声ライブラリ
+- `GET /api/audio-library` - 著作権フリーの音声トラックを取得
+- `GET /api/audio/{audio_id}` - 音声ファイルをストリーミング
+- `GET /api/audio-genres` - 利用可能な音声ジャンルを取得
+- `GET /api/audio-moods` - 利用可能な音声ムードを取得
 
-## Database Schema
+### 動画処理
+- `POST /api/video-processing/{client_id}` - 動画を処理
+- `GET /api/video/{result_id}` - 処理済み動画をストリーミング
+- `POST /process-video/` - 拡張動画処理エンドポイント
 
-The application uses SQLite with the following tables:
+## データベーススキーマ
 
-- `clients` - Client information
-- `selections` - Client selections for target attributes, purposes, and platforms
-- `uploads` - Uploaded files
-- `profiles` - AI-generated profiles
-- `scripts` - AI-generated scripts
-- `detailed_success_cases` - Database of successful social media content
-- `client_video_transcripts` - YouTube video transcripts
-- `transcript_analysis` - Analysis of video transcripts
-- `copyright_free_audio` - Audio library
-- `video_processing_results` - Results of video processing
+アプリケーションは以下のテーブルを持つSQLiteを使用しています:
 
-## Testing the Application
+- `clients` - クライアント情報
+- `selections` - ターゲット属性、目的、プラットフォームのクライアント選択
+- `uploads` - アップロードされたファイル
+- `profiles` - AI生成プロフィール
+- `scripts` - AI生成スクリプト
+- `detailed_success_cases` - 成功したソーシャルメディアコンテンツのデータベース
+- `client_video_transcripts` - YouTube動画の字幕
+- `transcript_analysis` - 字幕分析
+- `copyright_free_audio` - 音声ライブラリ
+- `video_processing_results` - 動画処理結果
 
-1. Start the application:
+## アプリケーションのテスト
+
+1. アプリケーションを起動:
 ```bash
-cd app
-python main_final_integration.py
+uvicorn app.main_final_integration:app --reload
 ```
 
-2. Open a browser and navigate to:
+2. ブラウザを開いて以下のURLにアクセス:
 ```
 http://localhost:8000
 ```
 
-3. Test the API endpoints using curl:
+3. curlを使用してAPIエンドポイントをテスト:
 ```bash
 curl -X GET http://localhost:8000/health
 ```
 
-## Exposing the Application
+## トラブルシューティング
 
-To expose the application to the internet:
-
-```bash
-cd app
-python main_final_integration.py
-```
-
-In a separate terminal:
-```bash
-# Using a tool like ngrok
-ngrok http 8000
-```
-
-## Troubleshooting
-
-- If you encounter issues with file uploads, ensure the `app/uploads` directory exists
-- For OpenAI API errors, check your API key in the `.env` file
-- If the application fails to start, check the console for error messages
+- ファイルアップロードに問題がある場合は、`app/uploads` ディレクトリが存在することを確認してください
+- OpenAI APIエラーの場合は、`.env` ファイル内のAPIキーを確認してください
+- アプリケーションが起動しない場合は、コンソールでエラーメッセージを確認してください
+- 依存関係のインストールに問題がある場合は、Pythonのバージョンが3.8以上であることを確認してください

@@ -29,6 +29,8 @@ app/main_*.py
 !app/main_final_integration.py
 !app/main_public_no_auth.py
 !app/main_public_no_auth_integration.py
+!app/main_public_tunnel.py
+!app/main_public_tunnel_integration.py
 !app/main_enhanced_routes.py
 
 # Test files
