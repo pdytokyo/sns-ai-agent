@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>著作権フリー音源プレーヤー</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .audio-card {
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+        .audio-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .audio-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .genre-filter, .mood-filter {
+            margin-bottom: 20px;
+        }
+        .selected-audio {
+            background-color: #e7f5ff;
+            border-left: 4px solid #0d6efd;
+        }
+        .audio-duration {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+        .audio-source {
+            font-size: 0.8rem;
+            color: #6c757d;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <h1 class="mb-4">著作権フリー音源ライブラリ</h1>
+        <p class="lead mb-4">動画に使用できる著作権フリーの音源を試聴・選択できます。</p>
+        
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="genre-filter">
+                    <label for="genre-select" class="form-label">ジャンルで絞り込み</label>
+                    <select id="genre-select" class="form-select">
+                        <option value="">すべてのジャンル</option>
+                        <option value="ポップ">ポップ</option>
+                        <option value="ロック">ロック</option>
+                        <option value="エレクトロニック">エレクトロニック</option>
+                        <option value="ヒップホップ">ヒップホップ</option>
+                        <option value="アンビエント">アンビエント</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mood-filter">
+                    <label for="mood-select" class="form-label">ムードで絞り込み</label>
+                    <select id="mood-select" class="form-select">
+                        <option value="">すべてのムード</option>
+                        <option value="明るい">明るい</option>
+                        <option value="エネルギッシュ">エネルギッシュ</option>
+                        <option value="落ち着いた">落ち着いた</option>
+                        <option value="感動的">感動的</option>
+                        <option value="楽しい">楽しい</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div id="audio-container" class="row">
+            <!-- Audio cards will be dynamically inserted here -->
+            <div class="col-md-6">
+                <div class="card audio-card" data-genre="ポップ" data-mood="明るい">
+                    <div class="card-body">
+                        <h5 class="card-title">ポップトラック1</h5>
+                        <p class="card-text">
+                            <span class="badge bg-primary">ポップ</span>
+                            <span class="badge bg-secondary">明るい</span>
+                            <span class="audio-duration">2:45</span>
+                        </p>
+                        <p class="audio-source">出典: YouTube Audio Library</p>
+                        <div class="audio-controls">
+                            <audio controls src="/static/audio/pop_1.mp3" preload="none"></audio>
+                            <button class="btn btn-sm btn-outline-primary select-audio">選択</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card audio-card" data-genre="ロック" data-mood="エネルギッシュ">
+                    <div class="card-body">
+                        <h5 class="card-title">ロックトラック1</h5>
+                        <p class="card-text">
+                            <span class="badge bg-primary">ロック</span>
+                            <span class="badge bg-secondary">エネルギッシュ</span>
+                            <span class="audio-duration">3:15</span>
+                        </p>
+                        <p class="audio-source">出典: Epidemic Sound</p>
+                        <div class="audio-controls">
+                            <audio controls src="/static/audio/rock_1.mp3" preload="none"></audio>
+                            <button class="btn btn-sm btn-outline-primary select-audio">選択</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card audio-card" data-genre="エレクトロニック" data-mood="エネルギッシュ">
+                    <div class="card-body">
+                        <h5 class="card-title">エレクトロニックトラック1</h5>
+                        <p class="card-text">
+                            <span class="badge bg-primary">エレクトロニック</span>
+                            <span class="badge bg-secondary">エネルギッシュ</span>
+                            <span class="audio-duration">4:10</span>
+                        </p>
+                        <p class="audio-source">出典: YouTube Audio Library</p>
+                        <div class="audio-controls">
+                            <audio controls src="/static/audio/electronic_1.mp3" preload="none"></audio>
+                            <button class="btn btn-sm btn-outline-primary select-audio">選択</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card audio-card" data-genre="アンビエント" data-mood="落ち着いた">
+                    <div class="card-body">
+                        <h5 class="card-title">アンビエントトラック1</h5>
+                        <p class="card-text">
+                            <span class="badge bg-primary">アンビエント</span>
+                            <span class="badge bg-secondary">落ち着いた</span>
+                            <span class="audio-duration">5:30</span>
+                        </p>
+                        <p class="audio-source">出典: Epidemic Sound</p>
+                        <div class="audio-controls">
+                            <audio controls src="/static/audio/ambient_1.mp3" preload="none"></audio>
+                            <button class="btn btn-sm btn-outline-primary select-audio">選択</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <h3>選択した音源</h3>
+            <div id="selected-audio-info" class="alert alert-info">
+                音源が選択されていません
+            </div>
+            <button id="confirm-audio" class="btn btn-primary" disabled>この音源を使用する</button>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Filter audio by genre and mood
+            function filterAudio() {
+                const selectedGenre = document.getElementById('genre-select').value;
+                const selectedMood = document.getElementById('mood-select').value;
+                
+                const audioCards = document.querySelectorAll('.audio-card');
+                
+                audioCards.forEach(card => {
+                    const genre = card.getAttribute('data-genre');
+                    const mood = card.getAttribute('data-mood');
+                    
+                    const genreMatch = !selectedGenre || genre === selectedGenre;
+                    const moodMatch = !selectedMood || mood === selectedMood;
+                    
+                    if (genreMatch && moodMatch) {
+                        card.closest('.col-md-6').style.display = 'block';
+                    } else {
+                        card.closest('.col-md-6').style.display = 'none';
+                    }
+                });
+            }
+            
+            // Handle genre filter change
+            document.getElementById('genre-select').addEventListener('change', filterAudio);
+            
+            // Handle mood filter change
+            document.getElementById('mood-select').addEventListener('change', filterAudio);
+            
+            // Handle audio selection
+            const selectButtons = document.querySelectorAll('.select-audio');
+            selectButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Remove selected class from all cards
+                    document.querySelectorAll('.audio-card').forEach(card => {
+                        card.classList.remove('selected-audio');
+                    });
+                    
+                    // Add selected class to this card
+                    const card = this.closest('.audio-card');
+                    card.classList.add('selected-audio');
+                    
+                    // Update selected audio info
+                    const title = card.querySelector('.card-title').textContent;
+                    const genre = card.getAttribute('data-genre');
+                    const mood = card.getAttribute('data-mood');
+                    const source = card.querySelector('.audio-source').textContent;
+                    
+                    document.getElementById('selected-audio-info').innerHTML = `
+                        <strong>${title}</strong><br>
+                        ジャンル: ${genre}, ムード: ${mood}<br>
+                        ${source}
+                    `;
+                    
+                    // Enable confirm button
+                    document.getElementById('confirm-audio').disabled = false;
+                    
+                    // Pause all other audio
+                    document.querySelectorAll('audio').forEach(audio => {
+                        if (audio !== card.querySelector('audio')) {
+                            audio.pause();
+                        }
+                    });
+                });
+            });
+            
+            // Handle audio confirmation
+            document.getElementById('confirm-audio').addEventListener('click', function() {
+                const selectedCard = document.querySelector('.audio-card.selected-audio');
+                if (selectedCard) {
+                    const title = selectedCard.querySelector('.card-title').textContent;
+                    const audioSrc = selectedCard.querySelector('audio').src;
+                    
+                    // This would normally send the selection to the server
+                    alert(`音源「${title}」を選択しました。実際のアプリでは、この選択がサーバーに送信されます。`);
+                    
+                    // In a real app, you would send this data to the server
+                    console.log('Selected audio:', {
+                        title: title,
+                        src: audioSrc
+                    });
+                }
+            });
+            
+            // Load audio data from API
+            function loadAudioData() {
+                // This would normally fetch data from the server
+                // For demo purposes, we're using the hardcoded examples
+                console.log('Audio data loaded');
+            }
+            
+            // Initialize
+            loadAudioData();
+        });
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
