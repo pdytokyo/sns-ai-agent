@@ -39,5 +39,30 @@ CREATE TABLE IF NOT EXISTS uploads (
 )
 ''')
 
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS weekly_trends (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    platform TEXT NOT NULL,  -- "Google", "YouTube", "TikTok"
+    keyword TEXT NOT NULL,
+    rank INTEGER,
+    region TEXT DEFAULT "JP",
+    collected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+''')
+
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS competitor_analysis (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    platform TEXT NOT NULL,  -- "YouTube", "Instagram", "TikTok"
+    video_url TEXT NOT NULL,
+    video_title TEXT,
+    view_count INTEGER,
+    comment_count INTEGER,
+    engagement_rate REAL,
+    popular_phrases TEXT,
+    analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+''')
+
 conn.commit()
 conn.close()
