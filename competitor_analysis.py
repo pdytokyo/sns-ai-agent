@@ -1,16 +1,11 @@
-import os
 import sqlite3
 import json
 import openai
-from dotenv import load_dotenv
-from youtube_transcript_api import YouTubeTranscriptApi, _errors
 import re
+from youtube_transcript_api import YouTubeTranscriptApi, _errors
+from config import DB_PATH, OPENAI_API_KEY
 
-load_dotenv()
-openai_api_key = os.getenv("OPENAI_API_KEY", "your_api_key_here")
-openai.api_key = openai_api_key
-
-DB_PATH = "data.db"
+openai.api_key = OPENAI_API_KEY
 
 def extract_video_id(url):
     """Extract YouTube video ID from URL."""
@@ -46,7 +41,7 @@ def analyze_competitor_script(transcript_text):
         }
         
     try:
-        if openai_api_key == "your_api_key_here":
+        if OPENAI_API_KEY == "your_api_key_here" or not OPENAI_API_KEY:
             return {
                 "keywords": ["キーワード1", "キーワード2", "キーワード3"],
                 "empathy_points": ["共感ポイント1", "共感ポイント2", "共感ポイント3"],

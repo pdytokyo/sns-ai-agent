@@ -1,16 +1,13 @@
-import os
 import json
 import sqlite3
 import requests
+import os
 from datetime import datetime
-from dotenv import load_dotenv
 import re
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from competitor_analysis import get_youtube_transcript, analyze_competitor_script
-
-load_dotenv()
-DB_PATH = "data.db"
+from config import DB_PATH, YOUTUBE_API_KEY
 
 def extract_video_id(url, platform):
     """Extract video ID from URL based on platform"""
@@ -36,11 +33,10 @@ def analyze_youtube_video(video_url):
         if not video_id:
             return {"success": False, "error": "Invalid YouTube URL"}
         
-        api_key = os.getenv("YOUTUBE_API_KEY", "")
-        if not api_key:
+        if not YOUTUBE_API_KEY:
             return {"success": False, "error": "YouTube API Key not set"}
         
-        url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id={video_id}&key={api_key}"
+        url = f"https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id={video_id}&key={YOUTUBE_API_KEY}"
         response = requests.get(url)
         
         if response.status_code != 200:

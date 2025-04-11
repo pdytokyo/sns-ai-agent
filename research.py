@@ -1,11 +1,8 @@
 from openai import OpenAI
-from dotenv import load_dotenv
-import os
 import sqlite3
+from config import DB_PATH, OPENAI_API_KEY
 
-load_dotenv()
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 def perform_research(prompt, category):
     response = client.chat.completions.create(
