@@ -6,6 +6,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from typing import List, Optional
 import sqlite3
 import os
+import json
 from pydantic import BaseModel
 import shutil
 from pathlib import Path
@@ -14,6 +15,11 @@ from dotenv import load_dotenv
 import base64
 import uuid
 import secrets
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from db_enhancement import research_detailed_success_case, store_success_case, collect_copyright_free_audio, store_audio_tracks, init_db as init_enhanced_db
+from competitor_analysis import get_youtube_transcript, analyze_competitor_script, store_competitor_script
+from video_processing import process_video
 
 load_dotenv()
 
@@ -24,6 +30,13 @@ if not os.getenv("OPENAI_API_KEY"):
 os.makedirs("uploads", exist_ok=True)
 
 app = FastAPI(title="SNS AI Agent Web Prototype")
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database tables on startup"""
+    print("Initializing enhanced database tables...")
+    init_enhanced_db()
+    print("Enhanced database tables initialized successfully.")
 
 security = HTTPBasic()
 
@@ -84,7 +97,7 @@ class AuthMiddleware:
             "body": b"Unauthorized",
         })
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(AuthMiddleware)
 
@@ -113,7 +126,8 @@ def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
     return credentials.username
 
 def get_db():
-    conn = sqlite3.connect("data.db")
+    db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app.db"))
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     try:
         yield conn
@@ -121,7 +135,8 @@ def get_db():
         conn.close()
 
 def init_db():
-    conn = sqlite3.connect("data.db")
+    db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app.db"))
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -200,6 +215,11 @@ class ProfileUpdate(BaseModel):
 
 class ScriptUpdate(BaseModel):
     script_text: str
+    
+class CompetitorVideoAnalyze(BaseModel):
+    platform: str
+    industry: str
+    video_url: str
 
 @app.post("/clients/", response_model=dict)
 async def create_client(client: ClientCreate, conn: sqlite3.Connection = Depends(get_db)):
@@ -371,7 +391,7 @@ async def generate_script(
     client_id: int = Form(...),
     conn: sqlite3.Connection = Depends(get_db)
 ):
-    """台本を生成するエンドポイント"""
+    """データドリブン型の台本を生成するエンドポイント"""
     cursor = conn.cursor()
     cursor.execute(
         "SELECT target_attributes, operational_purposes, platforms FROM selections WHERE client_id = ? ORDER BY created_at DESC LIMIT 1",
@@ -392,6 +412,19 @@ async def generate_script(
     operational_purposes = selection["operational_purposes"].split(",")
     platforms = selection["platforms"].split(",")
     
+    platform = platforms[0] if platforms else "YouTube"
+    cursor.execute(
+        "SELECT full_script, keywords, empathy_points, hook FROM competitor_scripts WHERE platform = ? ORDER BY created_at DESC LIMIT 1",
+        (platform,)
+    )
+    competitor_data = cursor.fetchone()
+    
+    cursor.execute(
+        "SELECT buzz_point, top_comments, trend_topics FROM detailed_success_cases WHERE platform = ? ORDER BY created_at DESC LIMIT 1",
+        (platform,)
+    )
+    success_case = cursor.fetchone()
+    
     prompt = f"""
     以下の情報に基づいて、SNS投稿用の台本を生成してください。
     
@@ -404,6 +437,27 @@ async def generate_script(
         prompt += f"""
         アカウント名: {profile['account_name']}
         プロフィール: {profile['profile_text']}
+        """
+    
+    if competitor_data:
+        keywords = json.loads(competitor_data["keywords"]) if isinstance(competitor_data["keywords"], str) else competitor_data["keywords"]
+        empathy_points = json.loads(competitor_data["empathy_points"]) if isinstance(competitor_data["empathy_points"], str) else competitor_data["empathy_points"]
+        hook = competitor_data["hook"]
+        
+        prompt += f"""
+        【必須事項】:
+        - 冒頭フック: 「{hook}」を基にリライト
+        - キーワード: 「{', '.join(keywords[:3])}」を含める
+        - 共感ポイント: 「{', '.join(empathy_points[:2])}」を活用する
+        """
+    
+    if success_case:
+        trend_topics = json.loads(success_case["trend_topics"]) if isinstance(success_case["trend_topics"], str) else success_case["trend_topics"]
+        buzz_point = success_case["buzz_point"].split(" - ")[1] if " - " in success_case["buzz_point"] else success_case["buzz_point"]
+        
+        prompt += f"""
+        - トレンドトピック: 「{', '.join(trend_topics[:2])}」を含める
+        - 注目ポイント: 「{buzz_point}」に関連する内容を含める
         """
     
     try:
@@ -556,6 +610,215 @@ async def get_options():
 async def root(username: str = Depends(verify_credentials)):
     """ルートエンドポイント - 静的ファイルにリダイレクト"""
     return RedirectResponse(url="/static/index.html")
+
+@app.post("/collect_success_cases/", response_model=dict)
+async def collect_success_cases(
+    platform: str = Form(...),
+    industry: str = Form(...),
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """指定したプラットフォームと業界の成功動画を収集し、DBに格納するエンドポイント"""
+    try:
+        success_case = research_detailed_success_case(platform, industry)
+        
+        case_id = store_success_case(platform, industry, success_case)
+        
+        return {
+            "success": True,
+            "id": case_id,
+            "platform": platform,
+            "industry": industry,
+            "video_url": success_case["video_url"],
+            "buzz_point": success_case["buzz_point"],
+            "top_comments": success_case["top_comments"],
+            "trend_topics": success_case["trend_topics"],
+            "engagement_reason": success_case["engagement_reason"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"成功事例の収集中にエラーが発生しました: {str(e)}")
+
+@app.post("/analyze_competitor_video/", response_model=dict)
+async def analyze_competitor_video(
+    competitor: CompetitorVideoAnalyze,
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """競合動画を分析し、台本・キーワード・共感ポイント・フックを抽出するエンドポイント"""
+    try:
+        transcript_text = get_youtube_transcript(competitor.video_url)
+        
+        analysis_result = analyze_competitor_script(transcript_text)
+        
+        script_id = store_competitor_script(
+            competitor.platform,
+            competitor.industry,
+            competitor.video_url,
+            transcript_text,
+            analysis_result
+        )
+        
+        return {
+            "success": True,
+            "id": script_id,
+            "platform": competitor.platform,
+            "industry": competitor.industry,
+            "video_url": competitor.video_url,
+            "keywords": analysis_result["keywords"],
+            "empathy_points": analysis_result["empathy_points"],
+            "hook": analysis_result["hook"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"競合動画の分析中にエラーが発生しました: {str(e)}")
+
+@app.post("/fetch_free_bgm/", response_model=dict)
+async def fetch_free_bgm(
+    genre: Optional[str] = Form(None),
+    mood: Optional[str] = Form(None),
+    limit: int = Form(10),
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """著作権フリー音源を取得・DBに格納するエンドポイント"""
+    try:
+        audio_tracks = collect_copyright_free_audio(genre, mood, limit)
+        
+        store_audio_tracks(audio_tracks)
+        
+        return {
+            "success": True,
+            "tracks": audio_tracks
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"著作権フリー音源の取得中にエラーが発生しました: {str(e)}")
+        
+@app.get("/bgm_library/", response_model=List[dict])
+async def get_bgm_library(
+    genre: Optional[str] = None,
+    mood: Optional[str] = None,
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """著作権フリー音源ライブラリを取得するエンドポイント"""
+    cursor = conn.cursor()
+    
+    query = "SELECT id, title, artist, genre, mood, duration, file_path, source FROM copyright_free_audio"
+    params = []
+    
+    if genre or mood:
+        query += " WHERE"
+        if genre:
+            query += " genre = ?"
+            params.append(genre)
+        if mood:
+            if genre:
+                query += " AND"
+            query += " mood = ?"
+            params.append(mood)
+    
+    cursor.execute(query, params)
+    tracks = cursor.fetchall()
+    
+    result = []
+    for track in tracks:
+        result.append({
+            "id": track[0],
+            "title": track[1],
+            "artist": track[2],
+            "genre": track[3],
+            "mood": track[4],
+            "duration": track[5],
+            "file_path": track[6],
+            "source": track[7]
+        })
+    
+    return result
+
+@app.post("/process_video/", response_model=dict)
+async def process_video_endpoint(
+    client_id: int = Form(...),
+    video_id: int = Form(...),
+    aspect_ratio: str = Form("16:9"),
+    silence_threshold: float = Form(0.02),
+    start_margin: float = Form(0.5),
+    end_margin: float = Form(0.5),
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """動画を処理するエンドポイント（アスペクト比変更、ジェットカット）"""
+    try:
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT file_path FROM uploads WHERE id = ? AND client_id = ?",
+            (video_id, client_id)
+        )
+        upload = cursor.fetchone()
+        
+        if not upload:
+            raise HTTPException(status_code=404, detail="動画が見つかりません")
+        
+        input_path = upload["file_path"]
+        
+        result = process_video(
+            input_path=input_path,
+            aspect_ratio=aspect_ratio,
+            silence_threshold=silence_threshold,
+            start_margin=start_margin,
+            end_margin=end_margin
+        )
+        
+        cursor.execute(
+            "INSERT INTO processed_videos (client_id, original_video_id, output_path, aspect_ratio, processing_info) VALUES (?, ?, ?, ?, ?)",
+            (
+                client_id,
+                video_id,
+                result["output_path"],
+                aspect_ratio,
+                json.dumps(result)
+            )
+        )
+        conn.commit()
+        processed_id = cursor.lastrowid
+        
+        output_rel_path = result["output_path"].replace("app/", "/")
+        
+        return {
+            "success": True,
+            "id": processed_id,
+            "client_id": client_id,
+            "original_video_id": video_id,
+            "output_path": output_rel_path,
+            "preview_url": f"/static/preview.html?video={output_rel_path}",
+            "aspect_ratio": aspect_ratio,
+            "original_duration": result["original_duration"],
+            "processed_duration": result["processed_duration"],
+            "reduction_percentage": result["reduction_percentage"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"動画処理中にエラーが発生しました: {str(e)}")
+
+@app.get("/video_info/{video_id}", response_model=dict)
+async def get_video_info(
+    video_id: int,
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """処理済み動画の情報を取得するエンドポイント"""
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        "SELECT processing_info, aspect_ratio FROM processed_videos WHERE id = ?",
+        (video_id,)
+    )
+    video = cursor.fetchone()
+    
+    if not video:
+        raise HTTPException(status_code=404, detail="動画情報が見つかりません")
+    
+    processing_info = json.loads(video["processing_info"])
+    
+    return {
+        "original_duration": processing_info["original_duration"],
+        "processed_duration": processing_info["processed_duration"],
+        "reduction_percentage": processing_info["reduction_percentage"],
+        "aspect_ratio": video["aspect_ratio"],
+        "silent_segments": processing_info["silent_segments"]
+    }
 
 if __name__ == "__main__":
     import uvicorn
