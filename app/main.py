@@ -59,13 +59,7 @@ async def startup_event():
 # security = HTTPBasic()
 
 # def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
-#     correct_username = "user"
-#     correct_password = "f047be9dc32d4a76824fcbf63823398d"
 #     
-#     is_username_correct = secrets.compare_digest(credentials.username, correct_username)
-#     is_password_correct = secrets.compare_digest(credentials.password, correct_password)
-#     
-#     if not (is_username_correct and is_password_correct):
 #         raise HTTPException(
 #             status_code=status.HTTP_401_UNAUTHORIZED,
 #             detail="Incorrect username or password",
