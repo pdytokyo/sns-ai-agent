@@ -17,7 +17,7 @@ os.makedirs("app/uploads", exist_ok=True)
 
 setup_routes(app)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
