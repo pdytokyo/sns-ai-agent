@@ -1,2 +1,37 @@
 .DS_Store
 data_backup.db
+data.db
+app.db
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Database files
+*.db
+app/*.db
+
+# Uploaded files
+app/uploads/*
+!app/uploads/.gitkeep
+
+# Environment variables
+.env.local
+
+# Virtual environment
+venv/
+env/
+
+# Development files
+app/main_*.py
+!app/main_final.py
+!app/main_final_integration.py
+!app/main_public_no_auth.py
+!app/main_public_no_auth_integration.py
+!app/main_public_tunnel.py
+!app/main_public_tunnel_integration.py
+!app/main_enhanced_routes.py
+
+# Test files
+test_*.py
