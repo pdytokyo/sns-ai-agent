@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>動画プレビュー - SNS AIエージェント</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+            padding: 20px;
+        }
+        .preview-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%; /* 16:9 アスペクト比 */
+            margin-bottom: 20px;
+        }
+        .video-container.ratio-1-1 {
+            padding-top: 100%; /* 1:1 アスペクト比 */
+        }
+        .video-container.ratio-9-16 {
+            padding-top: 177.78%; /* 9:16 アスペクト比 */
+        }
+        video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+        }
+        .header {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 10px 10px 0 0;
+            margin-bottom: 20px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-container">
+        <div class="header">
+            <h2>動画プレビュー</h2>
+            <p>処理された動画のプレビューを表示しています</p>
+        </div>
+        
+        <div id="videoContainer" class="video-container">
+            <video id="previewVideo" controls>
+                <source id="videoSource" src="" type="video/mp4">
+                お使いのブラウザは動画の再生に対応していません。
+            </video>
+        </div>
+        
+        <div class="video-info mb-4">
+            <h4>動画情報</h4>
+            <div id="videoInfo">
+                <p>読み込み中...</p>
+            </div>
+        </div>
+        
+        <div class="d-flex justify-content-between">
+            <button id="backBtn" class="btn btn-secondary">戻る</button>
+            <button id="downloadBtn" class="btn btn-primary">ダウンロード</button>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // URLからパラメータを取得
+            const urlParams = new URLSearchParams(window.location.search);
+            const videoPath = urlParams.get('video');
+            
+            if (videoPath) {
+                // 動画ソースを設定
+                document.getElementById('videoSource').src = videoPath;
+                document.getElementById('previewVideo').load();
+                
+                // アスペクト比を判断して適用
+                if (videoPath.includes('_1_1')) {
+                    document.getElementById('videoContainer').className = 'video-container ratio-1-1';
+                } else if (videoPath.includes('_9_16')) {
+                    document.getElementById('videoContainer').className = 'video-container ratio-9-16';
+                }
+                
+                // 動画情報を表示
+                const videoId = videoPath.split('/').pop().split('_')[0];
+                fetch(`/video_info/${videoId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        let infoHtml = `
+                            <p><strong>元の長さ:</strong> ${data.original_duration.toFixed(2)}秒</p>
+                            <p><strong>処理後の長さ:</strong> ${data.processed_duration.toFixed(2)}秒</p>
+                            <p><strong>短縮率:</strong> ${data.reduction_percentage.toFixed(2)}%</p>
+                            <p><strong>アスペクト比:</strong> ${data.aspect_ratio}</p>
+                        `;
+                        document.getElementById('videoInfo').innerHTML = infoHtml;
+                    })
+                    .catch(error => {
+                        document.getElementById('videoInfo').innerHTML = '<p>情報を取得できませんでした</p>';
+                    });
+            } else {
+                document.getElementById('videoInfo').innerHTML = '<p>動画が指定されていません</p>';
+            }
+            
+            // 戻るボタン
+            document.getElementById('backBtn').addEventListener('click', function() {
+                window.history.back();
+            });
+            
+            // ダウンロードボタン
+            document.getElementById('downloadBtn').addEventListener('click', function() {
+                if (videoPath) {
+                    const a = document.createElement('a');
+                    a.href = videoPath;
+                    a.download = videoPath.split('/').pop();
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
