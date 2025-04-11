@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNS AI Agent - Webプロトタイプ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .card-header {
+            background-color: #6c5ce7;
+            color: white;
+            font-weight: bold;
+            border-radius: 10px 10px 0 0 !important;
+        }
+        .btn-primary {
+            background-color: #6c5ce7;
+            border-color: #6c5ce7;
+        }
+        .btn-primary:hover {
+            background-color: #5b4bc9;
+            border-color: #5b4bc9;
+        }
+        .form-check-input:checked {
+            background-color: #6c5ce7;
+            border-color: #6c5ce7;
+        }
+        .hidden {
+            display: none;
+        }
+        .profile-card, .script-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: white;
+        }
+        .selected {
+            border: 2px solid #6c5ce7;
+            box-shadow: 0 0 10px rgba(108, 92, 231, 0.3);
+        }
+        .progress {
+            height: 30px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .progress-bar {
+            font-size: 16px;
+            line-height: 30px;
+        }
+        textarea {
+            min-height: 150px;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center my-4">SNS AI Agent</h1>
+        
+        <!-- プログレスバー -->
+        <div class="progress">
+            <div id="progress-bar" class="progress-bar bg-primary" role="progressbar" style="width: 20%" aria-valuenow="20" aria-valuemin="0" aria-valuemax="100">ステップ 1/5</div>
+        </div>
+        
+        <!-- ステップ1: クライアント情報 -->
+        <div id="step1" class="card">
+            <div class="card-header">
+                ステップ 1: クライアント情報
+            </div>
+            <div class="card-body">
+                <form id="clientForm">
+                    <div class="mb-3">
+                        <label for="clientName" class="form-label">お名前</label>
+                        <input type="text" class="form-control" id="clientName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="clientEmail" class="form-label">メールアドレス</label>
+                        <input type="email" class="form-control" id="clientEmail">
+                    </div>
+                    <div class="mb-3">
+                        <label for="youtubeUrls" class="form-label">YouTube動画URL（複数ある場合は改行で区切ってください）</label>
+                        <textarea class="form-control" id="youtubeUrls" rows="3" placeholder="https://www.youtube.com/watch?v=..."></textarea>
+                        <div class="form-text">入力したYouTube動画の字幕が自動取得され、AI生成に活用されます</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">次へ</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- ステップ2: ターゲット属性・運用目的・プラットフォーム選択 -->
+        <div id="step2" class="card hidden">
+            <div class="card-header">
+                ステップ 2: ターゲット属性・運用目的・プラットフォーム選択
+            </div>
+            <div class="card-body">
+                <form id="selectionsForm">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h5>ターゲット属性</h5>
+                            <div id="targetAttributesContainer">
+                                <!-- APIから取得したチェックボックスがここに表示されます -->
+                            </div>
+                            <div class="mb-3">
+                                <label for="interestsInput" class="form-label">興味関心（カンマ区切りで入力）</label>
+                                <input type="text" class="form-control" id="interestsInput" placeholder="例: 旅行,料理,音楽">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <h5>運用目的</h5>
+                            <div id="operationalPurposesContainer">
+                                <!-- APIから取得したチェックボックスがここに表示されます -->
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <h5>プラットフォーム</h5>
+                            <div id="platformsContainer">
+                                <!-- APIから取得したチェックボックスがここに表示されます -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-secondary me-2" onclick="prevStep(1)">戻る</button>
+                        <button type="submit" class="btn btn-primary">次へ</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- ステップ3: ファイルアップロード -->
+        <div id="step3" class="card hidden">
+            <div class="card-header">
+                ステップ 3: ファイルアップロード
+            </div>
+            <div class="card-body">
+                <form id="uploadForm">
+                    <div class="mb-3">
+                        <label for="fileUpload" class="form-label">動画・テキスト・PDFをアップロード</label>
+                        <input class="form-control" type="file" id="fileUpload" accept="video/*,text/*,.pdf">
+                    </div>
+                    <div id="uploadedFiles">
+                        <!-- アップロードされたファイル一覧 -->
+                    </div>
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-secondary me-2" onclick="prevStep(2)">戻る</button>
+                        <button type="button" class="btn btn-primary" onclick="nextStep(4)">次へ</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- ステップ4: プロフィール生成 -->
+        <div id="step4" class="card hidden">
+            <div class="card-header">
+                ステップ 4: プロフィール生成
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <button id="generateProfileBtn" class="btn btn-primary mb-3">プロフィールを生成</button>
+                    <div id="profileLoading" class="loading hidden">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="ms-2">生成中...</span>
+                    </div>
+                </div>
+                <div id="profilesContainer">
+                    <!-- 生成されたプロフィールがここに表示されます -->
+                </div>
+                <div class="mt-3">
+                    <button type="button" class="btn btn-secondary me-2" onclick="prevStep(3)">戻る</button>
+                    <button type="button" class="btn btn-primary" onclick="nextStep(5)">次へ</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ステップ5: 台本生成 -->
+        <div id="step5" class="card hidden">
+            <div class="card-header">
+                ステップ 5: 台本生成
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <button id="generateScriptBtn" class="btn btn-primary mb-3">台本を生成</button>
+                    <div id="scriptLoading" class="loading hidden">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="ms-2">生成中...</span>
+                    </div>
+                </div>
+                <div id="scriptsContainer">
+                    <!-- 生成された台本がここに表示されます -->
+                </div>
+                <div class="mt-3">
+                    <button type="button" class="btn btn-secondary me-2" onclick="prevStep(4)">戻る</button>
+                    <button type="button" class="btn btn-primary" onclick="finishProcess()">完了</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 完了メッセージ -->
+        <div id="completion" class="card hidden">
+            <div class="card-header bg-success">
+                完了
+            </div>
+            <div class="card-body">
+                <h5 class="card-title">プロセスが完了しました！</h5>
+                <p class="card-text">選択したプロフィールと台本が保存されました。</p>
+                <button type="button" class="btn btn-primary" onclick="resetProcess()">新しいプロセスを開始</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // グローバル変数
+        let clientId = null;
+        let selectedProfileId = null;
+        let selectedScriptId = null;
+        
+        // APIのベースURL
+        const apiBaseUrl = window.location.origin;
+        
+        // ページ読み込み時の処理
+        document.addEventListener('DOMContentLoaded', function() {
+            // オプションを取得して表示
+            fetchOptions();
+            
+            // フォームのイベントリスナー設定
+            document.getElementById('clientForm').addEventListener('submit', handleClientSubmit);
+            document.getElementById('selectionsForm').addEventListener('submit', handleSelectionsSubmit);
+            document.getElementById('fileUpload').addEventListener('change', handleFileUpload);
+            document.getElementById('generateProfileBtn').addEventListener('click', generateProfile);
+            document.getElementById('generateScriptBtn').addEventListener('click', generateScript);
+        });
+        
+        // APIからオプションを取得
+        async function fetchOptions() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/options`);
+                const data = await response.json();
+                
+                // ターゲット属性のチェックボックスを生成
+                const targetContainer = document.getElementById('targetAttributesContainer');
+                data.target_attributes.forEach(attr => {
+                    targetContainer.innerHTML += createCheckbox('targetAttributes', attr);
+                });
+                
+                // 運用目的のチェックボックスを生成
+                const purposeContainer = document.getElementById('operationalPurposesContainer');
+                data.operational_purposes.forEach(purpose => {
+                    purposeContainer.innerHTML += createCheckbox('operationalPurposes', purpose);
+                });
+                
+                // プラットフォームのチェックボックスを生成
+                const platformContainer = document.getElementById('platformsContainer');
+                data.platforms.forEach(platform => {
+                    platformContainer.innerHTML += createCheckbox('platforms', platform);
+                });
+            } catch (error) {
+                console.error('オプション取得エラー:', error);
+                alert('選択肢の取得に失敗しました。ページを再読み込みしてください。');
+            }
+        }
+        
+        // チェックボックスHTML生成
+        function createCheckbox(name, value) {
+            return `
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="${name}" value="${value}" id="${name}-${value.replace(/\s+/g, '-').toLowerCase()}">
+                    <label class="form-check-label" for="${name}-${value.replace(/\s+/g, '-').toLowerCase()}">${value}</label>
+                </div>
+            `;
+        }
+        
+        // クライアント情報送信
+        async function handleClientSubmit(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('clientName').value;
+            const email = document.getElementById('clientEmail').value;
+            const youtubeUrlsText = document.getElementById('youtubeUrls').value;
+            
+            // YouTube URLを改行で分割して配列に変換
+            const youtubeUrls = youtubeUrlsText
+                .split('\n')
+                .map(url => url.trim())
+                .filter(url => url !== '');
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/clients/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        email: email,
+                        youtube_urls: youtubeUrls.length > 0 ? youtubeUrls : null
+                    })
+                });
+                
+                const data = await response.json();
+                clientId = data.id;
+                nextStep(2);
+            } catch (error) {
+                console.error('クライアント情報送信エラー:', error);
+                alert('クライアント情報の送信に失敗しました。もう一度お試しください。');
+            }
+        }
+        
+        // 選択肢送信
+        async function handleSelectionsSubmit(event) {
+            event.preventDefault();
+            
+            // チェックされた値を取得
+            const targetAttributes = getCheckedValues('targetAttributes');
+            const operationalPurposes = getCheckedValues('operationalPurposes');
+            const platforms = getCheckedValues('platforms');
+            
+            // 興味関心を取得
+            const interestsInput = document.getElementById('interestsInput').value;
+            const interests = interestsInput.split(',').map(item => item.trim()).filter(item => item !== '');
+            
+            // 興味関心が入力されているか確認
+            if (interests.length === 0) {
+                alert('興味関心を入力してください。');
+                return;
+            }
+            
+            // 少なくとも1つ選択されているか確認
+            if (targetAttributes.length === 0 || operationalPurposes.length === 0 || platforms.length === 0) {
+                alert('各カテゴリから少なくとも1つ選択してください。');
+                return;
+            }
+            
+            // 興味関心をターゲット属性に追加
+            const allTargetAttributes = [...targetAttributes, ...interests.map(interest => `興味: ${interest}`)];
+            
+            // FormDataオブジェクト作成
+            const formData = new FormData();
+            formData.append('client_id', clientId);
+            
+            // 選択データをJSON文字列化してFormDataに追加
+            const selectionData = {
+                target_attributes: allTargetAttributes,
+                operational_purposes: operationalPurposes,
+                platforms: platforms
+            };
+            
+            // 各配列をFormDataに追加
+            allTargetAttributes.forEach(attr => {
+                formData.append('selection.target_attributes', attr);
+            });
+            
+            operationalPurposes.forEach(purpose => {
+                formData.append('selection.operational_purposes', purpose);
+            });
+            
+            platforms.forEach(platform => {
+                formData.append('selection.platforms', platform);
+            });
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/selections/`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                nextStep(3);
+            } catch (error) {
+                console.error('選択肢送信エラー:', error);
+                alert('選択肢の送信に失敗しました。もう一度お試しください。');
+            }
+        }
+        
+        // チェックされた値を取得
+        function getCheckedValues(name) {
+            const checkboxes = document.querySelectorAll(`input[name="${name}"]:checked`);
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+        
+        // ファイルアップロード処理
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('client_id', clientId);
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/upload/`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                // アップロードされたファイル一覧に追加
+                const filesList = document.getElementById('uploadedFiles');
+                filesList.innerHTML += `
+                    <div class="alert alert-success">
+                        <strong>${data.original_filename}</strong> がアップロードされました
+                    </div>
+                `;
+            } catch (error) {
+                console.error('ファイルアップロードエラー:', error);
+                alert('ファイルのアップロードに失敗しました。もう一度お試しください。');
+            }
+        }
+        
+        // プロフィール生成
+        async function generateProfile() {
+            if (!clientId) {
+                alert('クライアント情報が登録されていません。ステップ1からやり直してください。');
+                return;
+            }
+            
+            // ローディング表示
+            document.getElementById('profileLoading').classList.remove('hidden');
+            document.getElementById('generateProfileBtn').disabled = true;
+            
+            const formData = new FormData();
+            formData.append('client_id', clientId);
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/generate-profile/`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                // プロフィールカードを作成
+                const profilesContainer = document.getElementById('profilesContainer');
+                const profileCard = document.createElement('div');
+                profileCard.className = 'profile-card';
+                profileCard.dataset.profileId = data.id;
+                
+                profileCard.innerHTML = `
+                    <div class="mb-3">
+                        <label class="form-label">アカウント名</label>
+                        <input type="text" class="form-control account-name" value="${data.account_name}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">プロフィール</label>
+                        <textarea class="form-control profile-text">${data.profile_text}</textarea>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-primary select-profile-btn">選択</button>
+                        <button class="btn btn-success save-profile-btn">保存</button>
+                    </div>
+                `;
+                
+                profilesContainer.prepend(profileCard);
+                
+                // イベントリスナーを追加
+                profileCard.querySelector('.select-profile-btn').addEventListener('click', function() {
+                    selectProfile(data.id, profileCard);
+                });
+                
+                profileCard.querySelector('.save-profile-btn').addEventListener('click', function() {
+                    saveProfile(data.id, profileCard);
+                });
+                
+            } catch (error) {
+                console.error('プロフィール生成エラー:', error);
+                alert('プロフィールの生成に失敗しました。もう一度お試しください。');
+            } finally {
+                // ローディング非表示
+                document.getElementById('profileLoading').classList.add('hidden');
+                document.getElementById('generateProfileBtn').disabled = false;
+            }
+        }
+        
+        // プロフィール選択
+        async function selectProfile(profileId, profileCard) {
+            try {
+                const formData = new FormData();
+                formData.append('client_id', clientId);
+                
+                const response = await fetch(`${apiBaseUrl}/select-profile/${profileId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                // 選択状態を更新
+                document.querySelectorAll('.profile-card').forEach(card => {
+                    card.classList.remove('selected');
+                });
+                
+                profileCard.classList.add('selected');
+                selectedProfileId = profileId;
+                
+            } catch (error) {
+                console.error('プロフィール選択エラー:', error);
+                alert('プロフィールの選択に失敗しました。もう一度お試しください。');
+            }
+        }
+        
+        // プロフィール保存
+        async function saveProfile(profileId, profileCard) {
+            const accountName = profileCard.querySelector('.account-name').value;
+            const profileText = profileCard.querySelector('.profile-text').value;
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/profiles/${profileId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        account_name: accountName,
+                        profile_text: profileText
+                    })
+                });
+                
+                const data = await response.json();
+                alert('プロフィールが保存されました');
+                
+            } catch (error) {
+                console.error('プロフィール保存エラー:', error);
+                alert('プロフィールの保存に失敗しました。もう一度お試しください。');
+            }
+        }
+        
+        // 台本生成
+        async function generateScript() {
+            if (!clientId) {
+                alert('クライアント情報が登録されていません。ステップ1からやり直してください。');
+                return;
+            }
+            
+            // ローディング表示
+            document.getElementById('scriptLoading').classList.remove('hidden');
+            document.getElementById('generateScriptBtn').disabled = true;
+            
+            const formData = new FormData();
+            formData.append('client_id', clientId);
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/generate-script/`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                // 台本カードを作成
+                const scriptsContainer = document.getElementById('scriptsContainer');
+                const scriptCard = document.createElement('div');
+                scriptCard.className = 'script-card';
+                scriptCard.dataset.scriptId = data.id;
+                
+                scriptCard.innerHTML = `
+                    <div class="mb-3">
+                        <label class="form-label">台本</label>
+                        <textarea class="form-control script-text">${data.script_text}</textarea>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-primary select-script-btn">選択</button>
+                        <button class="btn btn-success save-script-btn">保存</button>
+                    </div>
+                `;
+                
+                scriptsContainer.prepend(scriptCard);
+                
+                // イベントリスナーを追加
+                scriptCard.querySelector('.select-script-btn').addEventListener('click', function() {
+                    selectScript(data.id, scriptCard);
+                });
+                
+                scriptCard.querySelector('.save-script-btn').addEventListener('click', function() {
+                    saveScript(data.id, scriptCard);
+                });
+                
+            } catch (error) {
+                console.error('台本生成エラー:', error);
+                alert('台本の生成に失敗しました。もう一度お試しください。');
+            } finally {
+                // ローディング非表示
+                document.getElementById('scriptLoading').classList.add('hidden');
+                document.getElementById('generateScriptBtn').disabled = false;
+            }
+        }
+        
+        // 台本選択
+        async function selectScript(scriptId, scriptCard) {
+            try {
+                const formData = new FormData();
+                formData.append('client_id', clientId);
+                
+                const response = await fetch(`${apiBaseUrl}/select-script/${scriptId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                // 選択状態を更新
+                document.querySelectorAll('.script-card').forEach(card => {
+                    card.classList.remove('selected');
+                });
+                
+                scriptCard.classList.add('selected');
+                selectedScriptId = scriptId;
+                
+            } catch (error) {
+                console.error('台本選択エラー:', error);
+                alert('台本の選択に失敗しました。もう一度お試しください。');
+            }
+        }
+        
+        // 台本保存
+        async function saveScript(scriptId, scriptCard) {
+            const scriptText = scriptCard.querySelector('.script-text').value;
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/scripts/${scriptId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        script_text: scriptText
+                    })
+                });
+                
+                const data = await response.json();
+                alert('台本が保存されました');
+                
+            } catch (error) {
+                console.error('台本保存エラー:', error);
+                alert('台本の保存に失敗しました。もう一度お試しください。');
+            }
+        }
+        
+        // 次のステップへ
+        function nextStep(step) {
+            // 現在のステップを非表示
+            for (let i = 1; i <= 5; i++) {
+                document.getElementById(`step${i}`).classList.add('hidden');
+            }
+            document.getElementById('completion').classList.add('hidden');
+            
+            // 次のステップを表示
+            document.getElementById(`step${step}`).classList.remove('hidden');
+            
+            // プログレスバーを更新
+            const progressBar = document.getElementById('progress-bar');
+            progressBar.style.width = `${step * 20}%`;
+            progressBar.textContent = `ステップ ${step}/5`;
+        }
+        
+        // 前のステップへ
+        function prevStep(step) {
+            nextStep(step);
+        }
+        
+        // プロセス完了
+        function finishProcess() {
+            // 完了メッセージを表示
+            for (let i = 1; i <= 5; i++) {
+                document.getElementById(`step${i}`).classList.add('hidden');
+            }
+            document.getElementById('completion').classList.remove('hidden');
+            
+            // プログレスバーを更新
+            const progressBar = document.getElementById('progress-bar');
+            progressBar.style.width = '100%';
+            progressBar.textContent = '完了';
+            progressBar.classList.remove('bg-primary');
+            progressBar.classList.add('bg-success');
+        }
+        
+        // プロセスリセット
+        function resetProcess() {
+            // フォームをリセット
+            document.getElementById('clientForm').reset();
+            document.getElementById('selectionsForm').reset();
+            document.getElementById('uploadForm').reset();
+            
+            // 生成されたコンテンツをクリア
+            document.getElementById('profilesContainer').innerHTML = '';
+            document.getElementById('scriptsContainer').innerHTML = '';
+            document.getElementById('uploadedFiles').innerHTML = '';
+            
+            // グローバル変数をリセット
+            clientId = null;
+            selectedProfileId = null;
+            selectedScriptId = null;
+            
+            // ステップ1に戻る
+            nextStep(1);
+            
+            // プログレスバーをリセット
+            const progressBar = document.getElementById('progress-bar');
+            progressBar.style.width = '20%';
+            progressBar.textContent = 'ステップ 1/5';
+            progressBar.classList.remove('bg-success');
+            progressBar.classList.add('bg-primary');
+        }
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
