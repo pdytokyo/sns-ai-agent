@@ -116,6 +116,15 @@
         <h1 class="mb-4">動画編集ツール</h1>
         <p class="lead mb-4">アスペクト比の選択、トリミング、マージン調整ができます。</p>
         
+        <form id="video-upload-form" enctype="multipart/form-data" class="mb-4">
+            <div class="mb-3">
+                <label for="video-upload" class="form-label">動画をアップロード</label>
+                <input class="form-control" type="file" id="video-upload" name="file" accept="video/*">
+            </div>
+            <input type="hidden" name="client_id" value="1">
+            <button type="submit" class="btn btn-primary mb-2">アップロード</button>
+        </form>
+        
         <div class="row">
             <div class="col-lg-8">
                 <div class="video-preview mb-4">
@@ -265,8 +274,10 @@
             const generatePreviewButton = document.getElementById('generate-preview');
             const saveEditButton = document.getElementById('save-edit');
             const aspectRatioOptions = document.querySelectorAll('.aspect-ratio-option');
+            const videoUploadForm = document.getElementById('video-upload-form');
             
             let videoDuration = 0;
+            let currentUploadId = null;
             
             // Initialize video
             videoPreview.addEventListener('loadedmetadata', function() {
@@ -351,19 +362,87 @@
                 });
             });
             
+            // Handle video upload form submission
+            videoUploadForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const fileInput = document.getElementById('video-upload');
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    alert('動画ファイルを選択してください');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                formData.append('client_id', document.querySelector('input[name="client_id"]').value);
+                
+                // 選択されたアスペクト比を取得
+                const aspectRatioOption = document.querySelector('.aspect-ratio-option.selected');
+                const aspectRatio = aspectRatioOption.getAttribute('data-ratio').replace('-', ':');
+                formData.append('aspect_ratio', aspectRatio);
+                
+                // マージン設定を取得
+                const marginSeconds = parseFloat(startMarginInput.value);
+                formData.append('margin_seconds', marginSeconds);
+                
+                loadingOverlay.style.display = 'flex';
+                loadingOverlay.textContent = 'アップロード中...';
+                
+                try {
+                    const response = await fetch('/upload_video/', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        currentUploadId = result.id;
+                        alert('動画がアップロードされました。プレビュー生成ボタンをクリックして処理を開始してください。');
+                    } else {
+                        alert('アップロード中にエラーが発生しました: ' + (result.detail || '不明なエラー'));
+                    }
+                } catch (error) {
+                    alert('アップロード中にエラーが発生しました: ' + error);
+                } finally {
+                    loadingOverlay.style.display = 'none';
+                }
+            });
+            
             // Handle generate preview button
-            generatePreviewButton.addEventListener('click', function() {
+            generatePreviewButton.addEventListener('click', async function() {
+                if (!currentUploadId) {
+                    alert('先に動画をアップロードしてください');
+                    return;
+                }
+                
                 // Show loading overlay
                 loadingOverlay.style.display = 'flex';
+                loadingOverlay.textContent = 'プレビュー生成中...';
                 
-                // Simulate preview generation (would normally be a server request)
-                setTimeout(function() {
-                    // Hide loading overlay
-                    loadingOverlay.style.display = 'none';
+                const formData = new FormData();
+                formData.append('upload_id', currentUploadId);
+                formData.append('silence_threshold', 0.02);
+                
+                try {
+                    const response = await fetch('/process_uploaded_video/', {
+                        method: 'POST',
+                        body: formData
+                    });
                     
-                    // In a real app, this would update the video source with the preview
-                    alert('プレビューが生成されました。実際のアプリでは、編集されたビデオプレビューが表示されます。');
-                }, 2000);
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // 処理された動画をプレビュー表示
+                        window.location.href = result.preview_url;
+                    } else {
+                        alert('動画処理中にエラーが発生しました: ' + (result.detail || '不明なエラー'));
+                    }
+                } catch (error) {
+                    alert('動画処理中にエラーが発生しました: ' + error);
+                } finally {
+                    loadingOverlay.style.display = 'none';
+                }
             });
             
             // Handle save edit button
