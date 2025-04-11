@@ -45,6 +45,126 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS clients (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS selections (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        target_attributes TEXT NOT NULL,
+        operational_purposes TEXT NOT NULL,
+        platforms TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients (id)
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS uploads (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        file_type TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients (id)
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS profiles (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        account_name TEXT NOT NULL,
+        profile_text TEXT NOT NULL,
+        selected INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients (id)
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS scripts (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        script_text TEXT NOT NULL,
+        selected INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients (id)
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS detailed_success_cases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        platform TEXT NOT NULL,
+        industry TEXT NOT NULL,
+        account_name TEXT,
+        profile_text TEXT,
+        video_url TEXT,
+        buzz_point TEXT,
+        top_comments TEXT,
+        trend_topics TEXT,
+        engagement_reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS client_video_transcripts (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        video_url TEXT NOT NULL,
+        transcript_text TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients (id)
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS transcript_analysis (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        keywords TEXT NOT NULL,
+        engaging_phrases TEXT NOT NULL,
+        sentiment_score REAL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients (id)
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS copyright_free_audio (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        genre TEXT NOT NULL,
+        mood TEXT NOT NULL,
+        duration INTEGER NOT NULL,
+        file_path TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS video_processing_results (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        input_path TEXT NOT NULL,
+        output_path TEXT NOT NULL,
+        aspect_ratio TEXT NOT NULL,
+        original_duration REAL NOT NULL,
+        processed_duration REAL NOT NULL,
+        reduction_percentage REAL NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients (id)
+    )
+    ''')
     
     conn.commit()
     conn.close()
