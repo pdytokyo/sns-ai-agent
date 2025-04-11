@@ -155,6 +155,11 @@ def generate_data_driven_script(client_id):
 def setup_routes(app):
     """Set up API routes for the application."""
     
+    @app.get("/")
+    async def root():
+        """Serve the main HTML page."""
+        return FileResponse("static/index_enhanced.html")
+    
     @app.post("/generate-profile/")
     async def generate_profile(client_id: str = Form(...)):
         """Generate a profile for a client."""
