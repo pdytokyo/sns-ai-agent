@@ -266,7 +266,7 @@ async def generate_profile(client_id: str = Form(...), username: str = Depends(g
         アカウント名とプロフィール文を日本語で生成してください。
         """
         
-        client = openai.OpenAI(api_key=openai_api_key)
+        client = openai.OpenAI(api_key=openai_api_key, base_url="https://api.openai.com/v1")
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -392,7 +392,7 @@ async def generate_script(client_id: str = Form(...), username: str = Depends(ge
         台本は日本語で、選択されたプラットフォームに適した形式で作成してください。
         """
         
-        client = openai.OpenAI(api_key=openai_api_key)
+        client = openai.OpenAI(api_key=openai_api_key, base_url="https://api.openai.com/v1")
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
