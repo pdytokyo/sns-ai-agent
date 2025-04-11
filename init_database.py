@@ -37,6 +37,7 @@ def initialize_databases():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             keyword TEXT,
             platform TEXT,
+            rank INTEGER,
             region TEXT,
             collected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
