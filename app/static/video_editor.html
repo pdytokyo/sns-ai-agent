@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>動画編集ツール</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .video-preview {
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            background-color: #000;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 0;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        .video-container.aspect-1-1 {
+            padding-bottom: 100%; /* 1:1 aspect ratio */
+        }
+        .video-container.aspect-9-16 {
+            padding-bottom: 177.78%; /* 9:16 aspect ratio */
+        }
+        .video-container video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .aspect-ratio-selector {
+            margin-bottom: 20px;
+        }
+        .aspect-ratio-option {
+            cursor: pointer;
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 5px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .aspect-ratio-option:hover {
+            border-color: #adb5bd;
+        }
+        .aspect-ratio-option.selected {
+            border-color: #0d6efd;
+            background-color: #e7f5ff;
+        }
+        .aspect-ratio-preview {
+            margin: 0 auto;
+            background-color: #6c757d;
+            margin-bottom: 10px;
+        }
+        .aspect-ratio-preview.ratio-16-9 {
+            width: 80px;
+            height: 45px;
+        }
+        .aspect-ratio-preview.ratio-1-1 {
+            width: 60px;
+            height: 60px;
+        }
+        .aspect-ratio-preview.ratio-9-16 {
+            width: 45px;
+            height: 80px;
+        }
+        .trim-controls {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        .trim-slider {
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+        .trim-time-display {
+            font-family: monospace;
+            font-size: 1.2rem;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .margin-controls {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        .preview-button {
+            margin-top: 20px;
+        }
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 1.5rem;
+            z-index: 10;
+        }
+        .spinner-border {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <h1 class="mb-4">動画編集ツール</h1>
+        <p class="lead mb-4">アスペクト比の選択、トリミング、マージン調整ができます。</p>
+        
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="video-preview mb-4">
+                    <div class="video-container" id="video-container">
+                        <video id="video-preview" controls>
+                            <source src="/static/video/sample.mp4" type="video/mp4">
+                            お使いのブラウザは動画再生に対応していません。
+                        </video>
+                        <div class="loading-overlay" id="loading-overlay" style="display: none;">
+                            <div class="spinner-border" role="status"></div>
+                            プレビュー生成中...
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="trim-controls">
+                    <h3>トリミング</h3>
+                    <div class="trim-time-display">
+                        開始: <span id="start-time">0:00</span> - 
+                        終了: <span id="end-time">0:00</span> 
+                        (長さ: <span id="duration">0:00</span>)
+                    </div>
+                    <div class="trim-slider">
+                        <label for="trim-start" class="form-label">開始位置</label>
+                        <input type="range" class="form-range" id="trim-start" min="0" max="100" value="0">
+                        
+                        <label for="trim-end" class="form-label">終了位置</label>
+                        <input type="range" class="form-range" id="trim-end" min="0" max="100" value="100">
+                    </div>
+                </div>
+                
+                <div class="margin-controls">
+                    <h3>マージン調整</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="start-margin" class="form-label">開始マージン (秒)</label>
+                            <input type="number" class="form-control" id="start-margin" min="0" max="10" step="0.5" value="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end-margin" class="form-label">終了マージン (秒)</label>
+                            <input type="number" class="form-control" id="end-margin" min="0" max="10" step="0.5" value="0">
+                        </div>
+                    </div>
+                </div>
+                
+                <button id="generate-preview" class="btn btn-primary preview-button">
+                    プレビュー生成
+                </button>
+                
+                <button id="save-edit" class="btn btn-success preview-button ms-2">
+                    編集を保存
+                </button>
+            </div>
+            
+            <div class="col-lg-4">
+                <div class="aspect-ratio-selector">
+                    <h3>アスペクト比</h3>
+                    <div class="row">
+                        <div class="col-4">
+                            <div class="aspect-ratio-option selected" data-ratio="16-9">
+                                <div class="aspect-ratio-preview ratio-16-9"></div>
+                                <div>16:9</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="aspect-ratio-option" data-ratio="1-1">
+                                <div class="aspect-ratio-preview ratio-1-1"></div>
+                                <div>1:1</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="aspect-ratio-option" data-ratio="9-16">
+                                <div class="aspect-ratio-preview ratio-9-16"></div>
+                                <div>9:16</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h3 class="card-title h5 mb-0">編集設定</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="video-quality" class="form-label">出力品質</label>
+                            <select id="video-quality" class="form-select">
+                                <option value="high">高品質 (1080p)</option>
+                                <option value="medium" selected>標準 (720p)</option>
+                                <option value="low">低品質 (480p)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="output-format" class="form-label">出力形式</label>
+                            <select id="output-format" class="form-select">
+                                <option value="mp4" selected>MP4</option>
+                                <option value="webm">WebM</option>
+                                <option value="mov">MOV</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="add-watermark">
+                            <label class="form-check-label" for="add-watermark">
+                                ウォーターマークを追加
+                            </label>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="auto-captions">
+                            <label class="form-check-label" for="auto-captions">
+                                自動字幕生成
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h3 class="card-title h5 mb-0">編集履歴</h3>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group">
+                            <li class="list-group-item">アスペクト比を16:9に設定</li>
+                            <li class="list-group-item">トリミング: 0:05 - 1:30</li>
+                            <li class="list-group-item">マージン: 開始 0.5秒, 終了 1秒</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const videoContainer = document.getElementById('video-container');
+            const videoPreview = document.getElementById('video-preview');
+            const loadingOverlay = document.getElementById('loading-overlay');
+            const startTimeDisplay = document.getElementById('start-time');
+            const endTimeDisplay = document.getElementById('end-time');
+            const durationDisplay = document.getElementById('duration');
+            const trimStartSlider = document.getElementById('trim-start');
+            const trimEndSlider = document.getElementById('trim-end');
+            const startMarginInput = document.getElementById('start-margin');
+            const endMarginInput = document.getElementById('end-margin');
+            const generatePreviewButton = document.getElementById('generate-preview');
+            const saveEditButton = document.getElementById('save-edit');
+            const aspectRatioOptions = document.querySelectorAll('.aspect-ratio-option');
+            
+            let videoDuration = 0;
+            
+            // Initialize video
+            videoPreview.addEventListener('loadedmetadata', function() {
+                videoDuration = videoPreview.duration;
+                updateTimeDisplays();
+            });
+            
+            // Format time in MM:SS format
+            function formatTime(seconds) {
+                const minutes = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${minutes}:${secs.toString().padStart(2, '0')}`;
+            }
+            
+            // Update time displays based on slider positions
+            function updateTimeDisplays() {
+                const startPercent = parseInt(trimStartSlider.value);
+                const endPercent = parseInt(trimEndSlider.value);
+                
+                const startTime = (startPercent / 100) * videoDuration;
+                const endTime = (endPercent / 100) * videoDuration;
+                const duration = endTime - startTime;
+                
+                startTimeDisplay.textContent = formatTime(startTime);
+                endTimeDisplay.textContent = formatTime(endTime);
+                durationDisplay.textContent = formatTime(duration);
+            }
+            
+            // Handle trim start slider change
+            trimStartSlider.addEventListener('input', function() {
+                const startValue = parseInt(this.value);
+                const endValue = parseInt(trimEndSlider.value);
+                
+                if (startValue >= endValue) {
+                    this.value = endValue - 1;
+                }
+                
+                updateTimeDisplays();
+                
+                // Update video current time
+                const startTime = (parseInt(this.value) / 100) * videoDuration;
+                videoPreview.currentTime = startTime;
+            });
+            
+            // Handle trim end slider change
+            trimEndSlider.addEventListener('input', function() {
+                const startValue = parseInt(trimStartSlider.value);
+                const endValue = parseInt(this.value);
+                
+                if (endValue <= startValue) {
+                    this.value = startValue + 1;
+                }
+                
+                updateTimeDisplays();
+                
+                // Update video current time
+                const endTime = (parseInt(this.value) / 100) * videoDuration;
+                videoPreview.currentTime = endTime;
+            });
+            
+            // Handle aspect ratio selection
+            aspectRatioOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    // Remove selected class from all options
+                    aspectRatioOptions.forEach(opt => {
+                        opt.classList.remove('selected');
+                    });
+                    
+                    // Add selected class to clicked option
+                    this.classList.add('selected');
+                    
+                    // Update video container class
+                    videoContainer.className = 'video-container';
+                    
+                    const ratio = this.getAttribute('data-ratio');
+                    if (ratio === '1-1') {
+                        videoContainer.classList.add('aspect-1-1');
+                    } else if (ratio === '9-16') {
+                        videoContainer.classList.add('aspect-9-16');
+                    }
+                    // 16:9 is the default, no need to add a class
+                });
+            });
+            
+            // Handle generate preview button
+            generatePreviewButton.addEventListener('click', function() {
+                // Show loading overlay
+                loadingOverlay.style.display = 'flex';
+                
+                // Simulate preview generation (would normally be a server request)
+                setTimeout(function() {
+                    // Hide loading overlay
+                    loadingOverlay.style.display = 'none';
+                    
+                    // In a real app, this would update the video source with the preview
+                    alert('プレビューが生成されました。実際のアプリでは、編集されたビデオプレビューが表示されます。');
+                }, 2000);
+            });
+            
+            // Handle save edit button
+            saveEditButton.addEventListener('click', function() {
+                // Get all edit settings
+                const aspectRatio = document.querySelector('.aspect-ratio-option.selected').getAttribute('data-ratio');
+                const startPercent = parseInt(trimStartSlider.value);
+                const endPercent = parseInt(trimEndSlider.value);
+                const startTime = (startPercent / 100) * videoDuration;
+                const endTime = (endPercent / 100) * videoDuration;
+                const startMargin = parseFloat(startMarginInput.value);
+                const endMargin = parseFloat(endMarginInput.value);
+                const videoQuality = document.getElementById('video-quality').value;
+                const outputFormat = document.getElementById('output-format').value;
+                const addWatermark = document.getElementById('add-watermark').checked;
+                const autoCaptions = document.getElementById('auto-captions').checked;
+                
+                // In a real app, this would send the edit settings to the server
+                const editSettings = {
+                    aspectRatio: aspectRatio,
+                    trimStart: startTime,
+                    trimEnd: endTime,
+                    startMargin: startMargin,
+                    endMargin: endMargin,
+                    videoQuality: videoQuality,
+                    outputFormat: outputFormat,
+                    addWatermark: addWatermark,
+                    autoCaptions: autoCaptions
+                };
+                
+                console.log('Edit settings:', editSettings);
+                alert('編集が保存されました。実際のアプリでは、これらの設定がサーバーに送信されます。');
+            });
+        });
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
