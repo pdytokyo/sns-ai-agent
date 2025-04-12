@@ -1034,6 +1034,37 @@ async def dashboard():
     """分析ダッシュボードページを提供"""
     return RedirectResponse(url="/static/dashboard.html")
 
+@app.get("/instagram-analysis", response_class=HTMLResponse)
+async def instagram_analysis_dashboard():
+    """Instagram分析ダッシュボードページを提供"""
+    return RedirectResponse(url="/static/instagram_analysis.html")
+
+@app.post("/analyze-instagram-post/", response_model=dict)
+async def analyze_instagram_post(
+    post_url: str = Form(...),
+    client_id: Optional[int] = Form(None)
+):
+    """Instagram投稿を分析するエンドポイント"""
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from instagram_analyzer import process_instagram_post
+    
+    result = process_instagram_post(post_url, client_id)
+    return result
+
+@app.get("/get-instagram-analysis/", response_model=dict)
+async def get_instagram_analysis(post_id: Optional[int] = None):
+    """Instagram分析結果を取得するエンドポイント"""
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from instagram_analyzer import get_instagram_analysis
+    
+    if post_id:
+        result = get_instagram_analysis(post_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Instagram analysis not found")
+        return result
+    else:
+        return {"results": get_instagram_analysis()}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
