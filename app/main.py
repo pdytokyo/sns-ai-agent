@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Header, Security, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 # from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from typing import List, Optional
@@ -1383,7 +1383,7 @@ async def get_script_usage_stats():
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
     """分析ダッシュボードページを提供"""
-    return RedirectResponse(url="/static/dashboard.html")
+    return FileResponse("app/static/dashboard.html")
 
 @app.get("/instagram-analysis", response_class=HTMLResponse)
 async def instagram_analysis_dashboard():
