@@ -5,7 +5,547 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SNS AI Agent - 分析ダッシュボード</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/instagram-styles.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/js/bootstrap-tab-fix.js"></script>
+    <script src="/static/js/instagram-analysis.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded - initializing tabs');
+            
+            // Force Instagram tab to be active on page load
+            setTimeout(function() {
+                console.log('Forcing Instagram tab to be active');
+                // Show Instagram tab content
+                var instagramContent = document.getElementById('instagram-analysis');
+                if (instagramContent) {
+                    instagramContent.classList.add('show', 'active');
+                    instagramContent.style.display = 'block';
+                    console.log('Instagram tab content activated');
+                }
+                
+                // Set Instagram tab button as active
+                var instagramTab = document.querySelector('[data-bs-target="#instagram-analysis"]');
+                if (instagramTab) {
+                    instagramTab.classList.add('active');
+                    console.log('Instagram tab button activated');
+                }
+                
+                // Show Instagram form
+                var formCard = document.getElementById('instagramFormCard');
+                if (formCard) {
+                    formCard.style.display = 'block';
+                    console.log('Instagram form card displayed');
+                }
+                
+                // Hide no data message
+                var noDataElements = document.querySelectorAll('#instagram-analysis .no-data');
+                noDataElements.forEach(function(el) {
+                    el.style.display = 'none';
+                });
+                
+                // Load Instagram analysis data
+                fetch('/get-instagram-analysis/')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Instagram analysis data loaded:', data);
+                        if (data && data.length > 0) {
+                            displayInstagramAnalysis(data);
+                        }
+                    })
+                    .catch(error => console.error('Instagram分析データ取得エラー:', error));
+            }, 500);
+            
+            // Bootstrap 5 Tab initialization
+            var triggerTabList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tab"]'));
+            triggerTabList.forEach(function(triggerEl) {
+                triggerEl.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    
+                    // Hide all tab panes
+                    document.querySelectorAll('.tab-pane').forEach(function(pane) {
+                        pane.classList.remove('show', 'active');
+                        pane.style.display = 'none';
+                    });
+                    
+                    // Show clicked tab pane
+                    var targetId = this.getAttribute('data-bs-target');
+                    var targetPane = document.querySelector(targetId);
+                    if (targetPane) {
+                        targetPane.classList.add('show', 'active');
+                        targetPane.style.display = 'block';
+                        console.log('Tab pane activated:', targetId);
+                    }
+                    
+                    // Update active state of tab buttons
+                    document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function(tab) {
+                        tab.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                    
+                    // Special handling for Instagram tab
+                    if (targetId === '#instagram-analysis') {
+                        // Show Instagram form
+                        var formCard = document.getElementById('instagramFormCard');
+                        if (formCard) {
+                            formCard.style.display = 'block';
+                        }
+                        
+                        // Hide no data message
+                        var noDataElements = document.querySelectorAll('#instagram-analysis .no-data');
+                        noDataElements.forEach(function(el) {
+                            el.style.display = 'none';
+                        });
+                        
+                        // Load Instagram analysis data
+                        fetch('/get-instagram-analysis/')
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data && data.length > 0) {
+                                    displayInstagramAnalysis(data);
+                                }
+                            })
+                            .catch(error => console.error('Instagram分析データ取得エラー:', error));
+                    }
+                });
+            });
+        });
+    </script>
+    <style>
+        /* Instagram分析フォーム用スタイル */
+        #instagramFormCard {
+            display: block;
+        }
+        #instagramAnalysisForm {
+            display: block;
+        }
+        #instagram-analysis .no-data {
+            display: none;
+        }
+        .tab-content > .tab-pane {
+            display: none;
+        }
+        .tab-content > .active {
+            display: block;
+        }
+        /* 結果表示用スタイル */
+        #instagramResultCard {
+            display: none;
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        // Bootstrap初期化を確実に行うためのコード
+        document.addEventListener('DOMContentLoaded', function() {
+            // Instagram分析フォームを表示
+            var noDataElements = document.querySelectorAll('#instagram-analysis .no-data');
+            noDataElements.forEach(function(element) {
+                element.style.display = 'none';
+            });
+            
+            var instagramFormCard = document.getElementById('instagramFormCard');
+            if (instagramFormCard) {
+                instagramFormCard.style.display = 'block';
+            }
+            
+            // Instagram分析タブが最初から表示されるようにする
+            var instagramTabSelector = document.querySelector('[data-bs-target="#instagram-analysis"]');
+            if (instagramTabSelector) {
+                // すべてのタブコンテンツを非表示
+                document.querySelectorAll('.tab-pane').forEach(function(pane) {
+                    pane.classList.remove('show', 'active');
+                });
+                
+                // Instagramタブのコンテンツを表示
+                var instagramContent = document.getElementById('instagram-analysis');
+                if (instagramContent) {
+                    instagramContent.classList.add('show', 'active');
+                }
+                
+                // タブボタンのアクティブ状態を更新
+                document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function(tab) {
+                    tab.classList.remove('active');
+                });
+                instagramTabSelector.classList.add('active');
+            }
+            
+            // タブ初期化
+            var tabElements = document.querySelectorAll('[data-bs-toggle="tab"]');
+            tabElements.forEach(function(tabEl) {
+                tabEl.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    var target = document.querySelector(this.getAttribute('data-bs-target'));
+                    
+                    // すべてのタブコンテンツを非表示
+                    document.querySelectorAll('.tab-pane').forEach(function(pane) {
+                        pane.classList.remove('show', 'active');
+                    });
+                    
+                    // クリックされたタブのコンテンツを表示
+                    if (target) {
+                        target.classList.add('show', 'active');
+                    }
+                    
+                    // タブボタンのアクティブ状態を更新
+                    document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function(tab) {
+                        tab.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                    
+                    if (this.getAttribute('data-bs-target') === '#instagram-analysis') {
+                        var noDataElements = document.querySelectorAll('#instagram-analysis .no-data');
+                        noDataElements.forEach(function(element) {
+                            element.style.display = 'none';
+                        });
+                        
+                        var instagramFormCard = document.getElementById('instagramFormCard');
+                        if (instagramFormCard) {
+                            instagramFormCard.style.display = 'block';
+                        }
+                        
+                        // Instagram分析結果を取得
+                        fetch('/get-instagram-analysis/')
+                            .then(response => response.json())
+                            .then(data => {
+                                console.log('Instagram分析データを取得しました:', data);
+                                if (data && data.length > 0) {
+                                    if (typeof displayInstagramAnalysis === 'function') {
+                                        displayInstagramAnalysis(data);
+                                    }
+                                }
+                            })
+                            .catch(error => console.error('Instagram分析データ取得エラー:', error));
+                    }
+                });
+            });
+            
+            console.log('DOM fully loaded');
+            
+            // タブの初期化
+            var tabElements = document.querySelectorAll('[data-bs-toggle="tab"]');
+            console.log('Found tab elements:', tabElements.length);
+            
+            tabElements.forEach(function(tabEl) {
+                try {
+                    new bootstrap.Tab(tabEl);
+                    console.log('Initialized tab:', tabEl.id);
+                } catch (e) {
+                    console.error('Failed to initialize tab:', tabEl.id, e);
+                }
+            });
+            
+            // Instagram分析タブが選択されたときの処理
+            const instagramTabClick = document.getElementById('instagram-analysis-tab');
+            if (instagramTabClick) {
+                console.log('Found Instagram tab element');
+                instagramTabClick.addEventListener('click', function() {
+                    console.log('Instagram tab clicked');
+                    
+                    // タブコンテンツを表示
+                    const tabContent = document.getElementById('instagram-analysis');
+                    if (tabContent) {
+                        tabContent.classList.add('show', 'active');
+                    }
+                    
+                    // 「データなし」メッセージを非表示
+                    document.querySelectorAll('#instagram-analysis .no-data').forEach(function(el) {
+                        el.style.display = 'none';
+                    });
+                    
+                    // フォームカードを表示
+                    const formCard = document.getElementById('instagramFormCard');
+                    if (formCard) {
+                        console.log('Showing Instagram form card');
+                        formCard.style.display = 'block';
+                    } else {
+                        console.log('Instagram form card not found, creating it dynamically');
+                        // フォームカードが見つからない場合は動的に作成
+                        const tabContent = document.getElementById('instagram-analysis');
+                        if (tabContent) {
+                            const formCardHtml = `
+                                <div class="card mb-4" id="instagramFormCard">
+                                    <div class="card-header">
+                                        Instagram投稿URL分析
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="instagramAnalysisForm">
+                                            <div class="mb-3">
+                                                <label for="instagramPostUrl" class="form-label">Instagram投稿URL</label>
+                                                <input type="text" class="form-control" id="instagramPostUrl" placeholder="https://www.instagram.com/p/..." required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="instagramClientId" class="form-label">クライアントID（リライト用、任意）</label>
+                                                <input type="number" class="form-control" id="instagramClientId" placeholder="クライアントID">
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">
+                                                <span class="spinner-border spinner-border-sm" id="instagramAnalysisSpinner" style="display: none;" role="status" aria-hidden="true"></span>
+                                                分析する
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            `;
+                            tabContent.insertAdjacentHTML('afterbegin', formCardHtml);
+                            // フォームのイベントリスナーを設定
+                            const form = document.getElementById('instagramAnalysisForm');
+                            if (form) {
+                                form.addEventListener('submit', async function(e) {
+                                    e.preventDefault();
+                                    
+                                    const postUrl = document.getElementById('instagramPostUrl').value;
+                                    const clientId = document.getElementById('instagramClientId').value || null;
+                                    
+                                    // ローディング表示
+                                    document.getElementById('instagramAnalysisSpinner').style.display = 'inline-block';
+                                    
+                                    try {
+                                        const formData = new FormData();
+                                        formData.append('post_url', postUrl);
+                                        if (clientId) {
+                                            formData.append('client_id', clientId);
+                                        }
+                                        
+                                        const response = await fetch('/analyze-instagram-post/', {
+                                            method: 'POST',
+                                            body: formData
+                                        });
+                                        
+                                        const result = await response.json();
+                                        
+                                        // 結果表示
+                                        if (result.success) {
+                                            displayInstagramResult(result);
+                                            // 一覧を更新
+                                            // 分析結果一覧を更新
+                                            fetch('/get-instagram-analysis/')
+                                                .then(response => response.json())
+                                                .then(data => {
+                                                    if (data && data.results) {
+                                                        displayInstagramAnalysis(data);
+                                                    }
+                                                })
+                                                .catch(error => console.error('分析結果取得エラー:', error));
+                                        } else {
+                                            alert('エラー: ' + result.error);
+                                        }
+                                    } catch (error) {
+                                        alert('エラーが発生しました: ' + error);
+                                    } finally {
+                                        // ローディング非表示
+                                        document.getElementById('instagramAnalysisSpinner').style.display = 'none';
+                                    }
+                                });
+                            }
+                        }
+                    }
+                });
+                
+                // 初期表示時にInstagramタブをクリック（テスト用）
+                setTimeout(function() {
+                    console.log('Auto-clicking Instagram tab');
+                    instagramTabClick.click();
+                }, 1000);
+            } else {
+                console.error('Instagram tab element not found');
+            }
+            
+            // Instagram分析フォームの送信処理
+            const instagramForm = document.getElementById('instagramAnalysisForm');
+            if (instagramForm) {
+                console.log('Found Instagram form');
+                instagramForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    console.log('Instagram form submitted');
+                    
+                    const postUrl = document.getElementById('instagramPostUrl').value;
+                    const clientId = document.getElementById('instagramClientId').value || null;
+                    
+                    // ローディング表示
+                    const spinner = document.getElementById('instagramAnalysisSpinner');
+                    if (spinner) {
+                        spinner.style.display = 'inline-block';
+                    }
+                    
+                    try {
+                        const formData = new FormData();
+                        formData.append('post_url', postUrl);
+                        if (clientId) {
+                            formData.append('client_id', clientId);
+                        }
+                        
+                        console.log('Sending request to analyze Instagram post');
+                        const response = await fetch('/analyze-instagram-post/', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        const result = await response.json();
+                        console.log('Instagram analysis result:', result);
+                        
+                        // 結果表示
+                        if (result.success) {
+                            if (typeof displayInstagramResult === 'function') {
+                                displayInstagramResult(result);
+                            } else {
+                                console.error('displayInstagramResult function not defined');
+                                alert('表示関数が見つかりません');
+                            }
+                            
+                            // 一覧を更新
+                            fetch('/get-instagram-analysis/')
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data && data.length > 0 && typeof displayInstagramAnalysis === 'function') {
+                                        displayInstagramAnalysis(data);
+                                    }
+                                })
+                                .catch(error => console.error('Instagram分析データ取得エラー:', error));
+                        } else {
+                            alert('エラー: ' + (result.error || '不明なエラー'));
+                        }
+                    } catch (error) {
+                        console.error('Instagram analysis error:', error);
+                        alert('エラーが発生しました: ' + error);
+                    } finally {
+                        // ローディング非表示
+                        if (spinner) {
+                            spinner.style.display = 'none';
+                        }
+                    }
+                });
+            } else {
+                console.error('Instagram form not found');
+            }
+        });
+        
+        // Instagram分析結果表示関数
+        function displayInstagramResult(data) {
+            console.log('Displaying Instagram result:', data);
+            
+            // 結果カードを表示
+            const resultCard = document.getElementById('instagramResultCard');
+            if (resultCard) {
+                resultCard.style.display = 'block';
+            }
+            
+            // フォームカードを非表示
+            const formCard = document.getElementById('instagramFormCard');
+            if (formCard) {
+                formCard.style.display = 'none';
+            }
+            
+            // 結果データを表示
+            document.getElementById('instagramResultUrl').textContent = data.post_url || 'N/A';
+            document.getElementById('instagramResultViews').textContent = data.views || 'N/A';
+            document.getElementById('instagramResultLikes').textContent = data.likes || 'N/A';
+            document.getElementById('instagramResultComments').textContent = data.comments || 'N/A';
+            
+            const engagementRate = data.engagement_rate || 0;
+            document.getElementById('instagramResultEngagement').textContent = engagementRate.toFixed(2) + '%';
+            
+            const engagementBadge = document.getElementById('instagramResultHighEngagement');
+            if (engagementBadge) {
+                if (data.high_engagement) {
+                    engagementBadge.innerHTML = '<span class="badge bg-success">高</span>';
+                } else {
+                    engagementBadge.innerHTML = '<span class="badge bg-secondary">低</span>';
+                }
+            }
+            
+            // キャプションとハッシュタグを表示
+            if (data.caption) {
+                document.getElementById('instagramResultCaption').textContent = data.caption;
+            }
+            if (data.hashtags) {
+                document.getElementById('instagramResultHashtags').textContent = data.hashtags;
+            }
+            if (data.posted_at) {
+                document.getElementById('instagramResultPostedAt').textContent = data.posted_at;
+            }
+            
+            // 文字起こしとリライト結果を表示
+            const transcriptSection = document.getElementById('instagramTranscriptSection');
+            const rewriteSection = document.getElementById('instagramRewrittenSection');
+            
+            if (transcriptSection) {
+                if (data.transcript) {
+                    transcriptSection.style.display = 'block';
+                    document.getElementById('instagramResultTranscript').textContent = data.transcript;
+                } else {
+                    transcriptSection.style.display = 'none';
+                }
+            }
+            
+            if (rewriteSection) {
+                if (data.rewritten_script) {
+                    rewriteSection.style.display = 'block';
+                    document.getElementById('instagramResultRewritten').textContent = data.rewritten_script;
+                } else {
+                    rewriteSection.style.display = 'none';
+                }
+            }
+        }
+        
+        // Instagram分析一覧表示関数
+        function displayInstagramAnalysis(data) {
+            console.log('Displaying Instagram analysis list:', data);
+            
+            const tbody = document.querySelector('#instagramResultsTable tbody');
+            if (!tbody) {
+                console.error('Instagram results table body not found');
+                return;
+            }
+            
+            tbody.innerHTML = '';
+            
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                
+                const urlCell = document.createElement('td');
+                const urlLink = document.createElement('a');
+                urlLink.href = item.post_url;
+                urlLink.textContent = item.post_url.substring(0, 30) + '...';
+                urlLink.target = '_blank';
+                urlCell.appendChild(urlLink);
+                
+                const engagementCell = document.createElement('td');
+                const engagementRate = ((item.likes + item.comments) / item.views * 100).toFixed(2);
+                engagementCell.textContent = engagementRate + '%';
+                
+                const statusCell = document.createElement('td');
+                const badge = document.createElement('span');
+                badge.className = item.high_engagement ? 'badge bg-success' : 'badge bg-secondary';
+                badge.textContent = item.high_engagement ? '高' : '低';
+                statusCell.appendChild(badge);
+                
+                const actionCell = document.createElement('td');
+                const detailBtn = document.createElement('button');
+                detailBtn.className = 'btn btn-sm btn-primary view-details-btn';
+                detailBtn.textContent = '詳細';
+                detailBtn.setAttribute('data-id', item.id);
+                detailBtn.addEventListener('click', async () => {
+                    try {
+                        const response = await fetch(`/get-instagram-analysis/${item.id}`);
+                        const data = await response.json();
+                        if (data) {
+                            displayInstagramResult(data);
+                        }
+                    } catch (error) {
+                        console.error('詳細取得エラー:', error);
+                    }
+                });
+                actionCell.appendChild(detailBtn);
+                
+                row.appendChild(urlCell);
+                row.appendChild(engagementCell);
+                row.appendChild(statusCell);
+                row.appendChild(actionCell);
+                
+                tbody.appendChild(row);
+            });
+        }
+    </script>
     <style>
         .trend-item {
             padding: 8px;
@@ -104,20 +644,20 @@
                     <div class="card-body">
                         <ul class="nav nav-tabs" id="analysisTabs" role="tablist">
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="youtube-analysis-tab" data-bs-toggle="tab" data-bs-target="#youtube-analysis" type="button" role="tab">YouTube</button>
+                                <button class="nav-link" id="youtube-analysis-tab" data-bs-toggle="tab" data-bs-target="#youtube-analysis" type="button" role="tab">YouTube</button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="instagram-analysis-tab" data-bs-toggle="tab" data-bs-target="#instagram-analysis" type="button" role="tab">Instagram</button>
+                                <button class="nav-link active" id="instagram-analysis-tab" data-bs-toggle="tab" data-bs-target="#instagram-analysis" type="button" role="tab">Instagram</button>
                             </li>
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link" id="tiktok-analysis-tab" data-bs-toggle="tab" data-bs-target="#tiktok-analysis" type="button" role="tab">TikTok</button>
                             </li>
                         </ul>
                         <div class="tab-content p-3" id="analysisTabContent">
-                            <div class="tab-pane fade show active" id="youtube-analysis" role="tabpanel"></div>
-                            <div class="tab-pane fade" id="instagram-analysis" role="tabpanel">
-                                <!-- Instagramの分析フォーム -->
-                                <div class="card mb-4">
+                            <div class="tab-pane fade" id="youtube-analysis" role="tabpanel"></div>
+                            <div class="tab-pane fade show active" id="instagram-analysis" role="tabpanel" style="display: block !important">
+                                <!-- 分析フォーム -->
+                                <div class="card mb-4" id="instagramFormCard">
                                     <div class="card-header">
                                         Instagram投稿URL分析
                                     </div>
@@ -173,6 +713,10 @@
                                             <hr>
                                             <h5>リライト結果</h5>
                                             <pre id="instagramResultRewritten"></pre>
+                                        </div>
+                                        
+                                        <div class="text-center mt-3">
+                                            <button type="button" class="btn btn-secondary" onclick="backToInstagramForm()">フォームに戻る</button>
                                         </div>
                                     </div>
                                 </div>
@@ -338,7 +882,13 @@
         
         // 台本利用統計チャート作成
         function createUsageChart(data) {
-            const ctx = document.getElementById('scriptUsageChart').getContext('2d');
+            const canvas = document.getElementById('scriptUsageChart');
+            const ctx = canvas.getContext('2d');
+            
+            // 既存のチャートがあれば破棄
+            if (window.usageChart) {
+                window.usageChart.destroy();
+            }
             
             // データがない場合はサンプルデータを使用
             const monthlyStats = data.monthly_stats || [
@@ -353,7 +903,7 @@
             // 月別データを古い順に並べ替え
             monthlyStats.sort((a, b) => a.month.localeCompare(b.month));
             
-            new Chart(ctx, {
+            window.usageChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: monthlyStats.map(item => item.month),
@@ -388,7 +938,18 @@
         
         // エンゲージメント率チャート作成
         function createEngagementChart(data) {
-            const ctx = document.getElementById('engagementChart').getContext('2d');
+            const canvas = document.getElementById('engagementChart');
+            const ctx = canvas.getContext('2d');
+            
+            // 既存のチャートがあれば破棄
+            try {
+                if (window.engagementChart && typeof window.engagementChart.destroy === 'function') {
+                    window.engagementChart.destroy();
+                }
+            } catch (e) {
+                console.log('チャート破棄エラー:', e);
+                // エラーが発生しても続行
+            }
             
             // 各プラットフォームのエンゲージメント率平均を計算
             const platforms = ['youtube', 'instagram', 'tiktok'];
@@ -407,7 +968,7 @@
                 }
             });
             
-            new Chart(ctx, {
+            window.engagementChart = new Chart(ctx, {
                 type: 'pie',
                 data: {
                     labels: ['YouTube', 'Instagram', 'TikTok'],
@@ -443,6 +1004,13 @@
         
         // Instagram分析表示関数
         function displayInstagramAnalysis(data) {
+            // 分析フォームを常に表示
+            const analysisForm = document.getElementById('instagramAnalysisForm');
+            if (analysisForm) {
+                analysisForm.style.display = 'block';
+            }
+            
+            // 結果テーブルの処理
             const tableBody = document.getElementById('instagramAnalysisTable');
             if (!tableBody) return;
             
@@ -499,6 +1067,64 @@
                     }
                 });
             });
+        }
+        
+        // Instagram分析結果一覧表示関数
+        function displayInstagramAnalysis(data) {
+            const tbody = document.querySelector('#instagram-analysis table tbody');
+            if (!tbody) return;
+            
+            // テーブルをクリア
+            tbody.innerHTML = '';
+            
+            if (data.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="5">データがありません</td>';
+                tbody.appendChild(row);
+                return;
+            }
+            
+            // 分析結果を表示
+            // APIが{results: Array}形式で返すため、data.resultsを使用
+            const dataArray = data.results || data;
+            dataArray.forEach(item => {
+                const row = document.createElement('tr');
+                
+                // エンゲージメント率を計算
+                const engagementRate = item.views > 0 
+                    ? ((item.likes + item.comments) / item.views * 100).toFixed(2) 
+                    : 'N/A';
+                
+                // 高エンゲージメントかどうかのクラス
+                const engagementClass = item.high_engagement ? 'engagement-high' : 'engagement-low';
+                
+                row.innerHTML = `
+                    <td>${item.id}</td>
+                    <td><a href="${item.post_url}" target="_blank">${item.post_url.substring(0, 30)}...</a></td>
+                    <td>${item.views?.toLocaleString() || 'N/A'}</td>
+                    <td class="${engagementClass}">${engagementRate}%</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary view-details-btn" data-id="${item.id}">詳細</button>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+            
+            // 詳細ボタンにイベントリスナーを追加
+            addDetailButtonListeners();
+            
+            // "No data"メッセージを非表示
+            const noDataElements = document.querySelectorAll('#instagram-analysis .no-data');
+            noDataElements.forEach(element => {
+                element.style.display = 'none';
+            });
+            
+            // フォームを表示
+            const instagramForm = document.getElementById('instagramAnalysisForm');
+            if (instagramForm) {
+                instagramForm.style.display = 'block';
+            }
         }
         
         // Instagram分析結果表示関数
@@ -631,7 +1257,371 @@
         });
         
         // ページロード時にデータを取得
-        // document.addEventListener('DOMContentLoaded', loadData);
+        document.addEventListener('DOMContentLoaded', function() {
+            // データロード
+            loadData();
+            
+            // Instagram分析フォームの初期化
+            const instagramForm = document.getElementById('instagramAnalysisForm');
+            if (instagramForm) {
+                instagramForm.style.display = 'block';
+            }
+            
+            // Instagram分析結果の取得
+            fetch('/get-instagram-analysis/')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.results) {
+                        displayInstagramAnalysis(data.results);
+                    }
+                })
+                .catch(error => console.error('Instagram分析データ取得エラー:', error));
+        });
+        
+        // タブ切り替え時のイベント処理
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded: タブ初期化開始');
+            
+            // Instagram分析タブの初期化（直接実行）
+            console.log('Instagram分析タブを直接初期化します');
+            const instagramTabElement = document.getElementById('instagram-analysis-tab');
+            if (instagramTabElement) {
+                console.log('Instagram分析タブが見つかりました');
+                instagramTabElement.classList.add('active');
+                instagramTabElement.setAttribute('aria-selected', 'true');
+                
+                const instagramPane = document.getElementById('instagram-analysis');
+                if (instagramPane) {
+                    console.log('Instagram分析ペインが見つかりました');
+                    instagramPane.classList.add('show', 'active');
+                    
+                    const noDataElements = document.querySelectorAll('#instagram-analysis .no-data');
+                    noDataElements.forEach(function(element) {
+                        console.log('no-dataを非表示にします');
+                        element.style.display = 'none';
+                    });
+                    
+                    const formCard = document.getElementById('instagramFormCard');
+                    if (formCard) {
+                        console.log('フォームカードを表示します');
+                        formCard.style.display = 'block';
+                    }
+                    
+                    const instagramForm = document.getElementById('instagramAnalysisForm');
+                    if (instagramForm) {
+                        console.log('分析フォームを表示します');
+                        instagramForm.style.display = 'block';
+                    }
+                }
+            }
+            
+            // Bootstrap 5のタブ初期化
+            var tabElms = document.querySelectorAll('button[data-bs-toggle="tab"]');
+            tabElms.forEach(function(tabElm) {
+                tabElm.addEventListener('click', function(event) {
+                    console.log('タブがクリックされました:', this.id);
+                    event.preventDefault();
+                    var tabId = this.getAttribute('data-bs-target');
+                    
+                    // すべてのタブとタブコンテンツを非アクティブにする
+                    document.querySelectorAll('.nav-link').forEach(function(tab) {
+                        tab.classList.remove('active');
+                        tab.setAttribute('aria-selected', 'false');
+                    });
+                    
+                    document.querySelectorAll('.tab-pane').forEach(function(pane) {
+                        pane.classList.remove('show', 'active');
+                    });
+                    
+                    // クリックされたタブをアクティブにする
+                    this.classList.add('active');
+                    this.setAttribute('aria-selected', 'true');
+                    
+                    // クリックされたタブに対応するペインを表示
+                    document.querySelector(tabId).classList.add('show', 'active');
+                    
+                    // Instagram分析タブの場合、データを取得
+                    if (tabId === '#instagram-analysis') {
+                        // 分析フォームを表示
+                        const instagramForm = document.getElementById('instagramAnalysisForm');
+                        if (instagramForm) {
+                            instagramForm.style.display = 'block';
+                            
+                            // 分析結果カードを初期表示
+                            const resultCard = document.getElementById('instagramResultCard');
+                            if (resultCard) {
+                                resultCard.style.display = 'none';
+                            }
+                        }
+                        
+                        // 分析結果を取得して表示
+                        fetch('/get-instagram-analysis/')
+                            .then(response => response.json())
+                            .then(data => displayInstagramAnalysis(data))
+                            .catch(error => console.error('Instagram分析データ取得エラー:', error));
+                    }
+                });
+            });
+            
+            // 初期表示時にアクティブなタブのデータを読み込む
+            var activeTab = document.querySelector('.nav-link.active');
+            if (activeTab) {
+                var tabId = activeTab.getAttribute('data-bs-target');
+                if (tabId === '#instagram-analysis') {
+                    // 分析フォームを表示
+                    document.getElementById('instagramAnalysisForm').style.display = 'block';
+                    
+                    // 分析結果を取得して表示
+                    fetch('/get-instagram-analysis/')
+                        .then(response => response.json())
+                        .then(data => displayInstagramAnalysis(data))
+                        .catch(error => console.error('Instagram分析データ取得エラー:', error));
+                }
+            }
+        });
+    </script>
+    
+    <!-- Instagram分析フォーム表示修正用スクリプト -->
+    <script>
+        // ページロード完了時に実行
+        window.addEventListener('load', function() {
+            console.log('ページロード完了: Instagram分析フォーム表示修正を実行');
+            
+            // Instagram分析タブの"no-data"メッセージを非表示
+            const noDataElements = document.querySelectorAll('#instagram-analysis .no-data');
+            noDataElements.forEach(function(element) {
+                element.style.display = 'none';
+                console.log('no-dataを非表示にしました');
+            });
+            
+            // Instagram分析フォームを表示
+            const formCard = document.getElementById('instagramFormCard');
+            if (formCard) {
+                formCard.style.display = 'block';
+                console.log('フォームカードを表示しました');
+            }
+            
+            const instagramForm = document.getElementById('instagramAnalysisForm');
+            if (instagramForm) {
+                instagramForm.style.display = 'block';
+                console.log('分析フォームを表示しました');
+                
+                // フォーム送信イベントリスナーを追加
+                instagramForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    console.log('Instagram分析フォームが送信されました');
+                    
+                    const postUrl = document.getElementById('instagramPostUrl').value;
+                    const clientId = document.getElementById('instagramClientId').value || null;
+                    
+                    // ローディング表示
+                    document.getElementById('instagramAnalysisSpinner').style.display = 'inline-block';
+                    
+                    try {
+                        const formData = new FormData();
+                        formData.append('post_url', postUrl);
+                        if (clientId) {
+                            formData.append('client_id', clientId);
+                        }
+                        
+                        console.log('APIリクエスト送信: ', postUrl, clientId);
+                        const response = await fetch('/analyze-instagram-post/', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        const result = await response.json();
+                        console.log('API応答: ', result);
+                        
+                        // 結果表示
+                        if (result.success) {
+                            displayInstagramResult(result);
+                            // 一覧を更新
+                            fetchInstagramAnalysisResults();
+                        } else {
+                            alert('エラー: ' + result.error);
+                        }
+                    } catch (error) {
+                        console.error('Instagram分析エラー:', error);
+                        alert('エラーが発生しました: ' + error);
+                    } finally {
+                        // ローディング非表示
+                        document.getElementById('instagramAnalysisSpinner').style.display = 'none';
+                    }
+                });
+            }
+            
+            // 分析結果テーブルを表示
+            const resultsTable = document.getElementById('instagramResultsTable');
+            if (resultsTable) {
+                const tableContainer = resultsTable.closest('.card');
+                if (tableContainer) {
+                    tableContainer.style.display = 'block';
+                    console.log('結果テーブルを表示しました');
+                }
+            }
+            
+            // 更新ボタンにイベントリスナーを追加
+            const refreshButton = document.getElementById('instagramRefreshButton');
+            if (refreshButton) {
+                refreshButton.addEventListener('click', function() {
+                    console.log('更新ボタンがクリックされました');
+                    fetchInstagramAnalysisResults();
+                });
+            }
+        });
+        
+        // Instagram分析結果一覧取得
+        function fetchInstagramAnalysisResults() {
+            console.log('Instagram分析結果一覧を取得します');
+            document.getElementById('instagramRefreshSpinner').style.display = 'inline-block';
+            
+            fetch('/get-instagram-analysis/')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Instagram分析データを取得しました:', data);
+                    displayInstagramAnalysis(data);
+                })
+                .catch(error => {
+                    console.error('Instagram分析データ取得エラー:', error);
+                })
+                .finally(() => {
+                    document.getElementById('instagramRefreshSpinner').style.display = 'none';
+                });
+        }
+        
+        // Instagram分析結果一覧表示
+        function displayInstagramAnalysis(data) {
+            console.log('Instagram分析結果一覧を表示します:', data);
+            const tableBody = document.getElementById('instagramAnalysisTable');
+            tableBody.innerHTML = '';
+            
+            if (data && data.length > 0) {
+                data.forEach(item => {
+                    const row = document.createElement('tr');
+                    
+                    // ID
+                    const idCell = document.createElement('td');
+                    idCell.textContent = item.id;
+                    row.appendChild(idCell);
+                    
+                    // URL
+                    const urlCell = document.createElement('td');
+                    const urlLink = document.createElement('a');
+                    urlLink.href = item.post_url;
+                    urlLink.textContent = item.post_url.substring(0, 30) + '...';
+                    urlLink.target = '_blank';
+                    urlCell.appendChild(urlLink);
+                    row.appendChild(urlCell);
+                    
+                    // 再生数
+                    const viewsCell = document.createElement('td');
+                    viewsCell.textContent = item.views ? item.views.toLocaleString() : 'N/A';
+                    row.appendChild(viewsCell);
+                    
+                    // エンゲージメント率
+                    const engagementCell = document.createElement('td');
+                    const engagementRate = item.engagement_rate ? item.engagement_rate.toFixed(2) + '%' : 'N/A';
+                    engagementCell.textContent = engagementRate;
+                    if (item.high_engagement) {
+                        engagementCell.classList.add('engagement-high');
+                    } else {
+                        engagementCell.classList.add('engagement-low');
+                    }
+                    row.appendChild(engagementCell);
+                    
+                    // 高エンゲージメント
+                    const highEngagementCell = document.createElement('td');
+                    highEngagementCell.textContent = item.high_engagement ? '✓' : '✗';
+                    highEngagementCell.classList.add(item.high_engagement ? 'engagement-high' : 'engagement-low');
+                    row.appendChild(highEngagementCell);
+                    
+                    // 文字起こし
+                    const transcriptCell = document.createElement('td');
+                    transcriptCell.textContent = item.transcript ? '✓' : '✗';
+                    transcriptCell.classList.add(item.transcript ? 'engagement-high' : 'engagement-low');
+                    row.appendChild(transcriptCell);
+                    
+                    // 操作
+                    const actionCell = document.createElement('td');
+                    const detailButton = document.createElement('button');
+                    detailButton.textContent = '詳細';
+                    detailButton.classList.add('btn', 'btn-sm', 'btn-outline-primary', 'view-details-btn');
+                    detailButton.setAttribute('data-id', item.id);
+                    detailButton.addEventListener('click', async () => {
+                        try {
+                            const response = await fetch(`/get-instagram-analysis/${item.id}`);
+                            const data = await response.json();
+                            if (data) {
+                                displayInstagramResult(data);
+                            }
+                        } catch (error) {
+                            console.error('詳細取得エラー:', error);
+                        }
+                    });
+                    actionCell.appendChild(detailButton);
+                    row.appendChild(actionCell);
+                    
+                    tableBody.appendChild(row);
+                });
+            } else {
+                const row = document.createElement('tr');
+                const cell = document.createElement('td');
+                cell.colSpan = 7;
+                cell.textContent = 'データがありません';
+                cell.style.textAlign = 'center';
+                row.appendChild(cell);
+                tableBody.appendChild(row);
+            }
+        }
+        
+        // Instagram分析結果詳細表示
+        function displayInstagramResult(data) {
+            console.log('Instagram分析結果詳細を表示します:', data);
+            // 基本情報
+            document.getElementById('instagramResultUrl').textContent = data.post_url;
+            document.getElementById('instagramResultViews').textContent = data.views ? data.views.toLocaleString() : 'N/A';
+            document.getElementById('instagramResultLikes').textContent = data.likes ? data.likes.toLocaleString() : 'N/A';
+            document.getElementById('instagramResultComments').textContent = data.comments ? data.comments.toLocaleString() : 'N/A';
+            
+            const engagementRate = data.engagement_rate ? data.engagement_rate.toFixed(2) + '%' : 'N/A';
+            const engagementEl = document.getElementById('instagramResultEngagement');
+            engagementEl.textContent = engagementRate;
+            engagementEl.className = data.high_engagement ? 'engagement-high' : 'engagement-low';
+            
+            document.getElementById('instagramResultHighEngagement').textContent = data.high_engagement ? '✓ 高エンゲージメント' : '✗ 低エンゲージメント';
+            document.getElementById('instagramResultHighEngagement').className = data.high_engagement ? 'engagement-high' : 'engagement-low';
+            
+            // コンテンツ情報
+            document.getElementById('instagramResultCaption').textContent = data.caption || 'N/A';
+            document.getElementById('instagramResultHashtags').textContent = data.hashtags || 'N/A';
+            document.getElementById('instagramResultPostedAt').textContent = data.posted_at || 'N/A';
+            
+            // 文字起こし
+            const transcriptSection = document.getElementById('instagramTranscriptSection');
+            if (data.transcript) {
+                document.getElementById('instagramResultTranscript').textContent = data.transcript;
+                transcriptSection.style.display = 'block';
+            } else {
+                transcriptSection.style.display = 'none';
+            }
+            
+            // リライト
+            const rewrittenSection = document.getElementById('instagramRewrittenSection');
+            if (data.rewritten_script) {
+                document.getElementById('instagramResultRewritten').textContent = data.rewritten_script;
+                rewrittenSection.style.display = 'block';
+            } else {
+                rewrittenSection.style.display = 'none';
+            }
+            
+            // 結果カードを表示
+            document.getElementById('instagramResultCard').style.display = 'block';
+            document.getElementById('instagramFormCard').style.display = 'none';
+        }
+        
+        // 初期データ読み込み
+        fetchInstagramAnalysisResults();
     </script>
 </body>
 </html>
