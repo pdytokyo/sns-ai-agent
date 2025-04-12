@@ -1,0 +1,34 @@
+/* Instagram分析スタイル */
+.engagement-high {
+    color: #28a745;
+    font-weight: bold;
+}
+.engagement-low {
+    color: #6c757d;
+}
+#instagramResultCard {
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+#instagramTranscriptSection, #instagramRewrittenSection {
+    margin-top: 15px;
+    border-top: 1px solid #dee2e6;
+    padding-top: 15px;
+}
+#instagramResultTranscript, #instagramResultRewritten {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+}
+.view-details-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+#instagramAnalysisSpinner, #instagramRefreshSpinner {
+    display: none;
+    width: 1rem;
+    height: 1rem;
+}
