@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Header, Security, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 # from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from typing import List, Optional
@@ -313,9 +313,9 @@ async def generate_profile(
     if not selection:
         raise HTTPException(status_code=404, detail="Client selections not found")
     
-    target_attributes = selection["target_attributes"].split(",")
-    operational_purposes = selection["operational_purposes"].split(",")
-    platforms = selection["platforms"].split(",")
+    target_attributes = selection[0].split(",")
+    operational_purposes = selection[1].split(",")
+    platforms = selection[2].split(",")
     
     prompt = f"""
     以下の情報に基づいて、SNSアカウントの名前とプロフィール文を生成してください。
@@ -415,9 +415,9 @@ async def generate_script(
     )
     profile = cursor.fetchone()
     
-    target_attributes = selection["target_attributes"].split(",")
-    operational_purposes = selection["operational_purposes"].split(",")
-    platforms = selection["platforms"].split(",")
+    target_attributes = selection[0].split(",")
+    operational_purposes = selection[1].split(",")
+    platforms = selection[2].split(",")
     
     platform = platforms[0] if platforms else "YouTube"
     cursor.execute(
@@ -442,14 +442,14 @@ async def generate_script(
     
     if profile:
         prompt += f"""
-        アカウント名: {profile['account_name']}
-        プロフィール: {profile['profile_text']}
+        アカウント名: {profile[0]}
+        プロフィール: {profile[1]}
         """
     
     if competitor_data:
-        keywords = json.loads(competitor_data["keywords"]) if isinstance(competitor_data["keywords"], str) else competitor_data["keywords"]
-        empathy_points = json.loads(competitor_data["empathy_points"]) if isinstance(competitor_data["empathy_points"], str) else competitor_data["empathy_points"]
-        hook = competitor_data["hook"]
+        keywords = json.loads(competitor_data[1]) if isinstance(competitor_data[1], str) else competitor_data[1]
+        empathy_points = json.loads(competitor_data[2]) if isinstance(competitor_data[2], str) else competitor_data[2]
+        hook = competitor_data[3]
         
         prompt += f"""
         【必須事項】:
@@ -459,8 +459,8 @@ async def generate_script(
         """
     
     if success_case:
-        trend_topics = json.loads(success_case["trend_topics"]) if isinstance(success_case["trend_topics"], str) else success_case["trend_topics"]
-        buzz_point = success_case["buzz_point"].split(" - ")[1] if " - " in success_case["buzz_point"] else success_case["buzz_point"]
+        trend_topics = json.loads(success_case[2]) if isinstance(success_case[2], str) else success_case[2]
+        buzz_point = success_case[0].split(" - ")[1] if " - " in success_case[0] else success_case[0]
         
         prompt += f"""
         - トレンドトピック: 「{', '.join(trend_topics[:2])}」を含める
@@ -1383,7 +1383,7 @@ async def get_script_usage_stats():
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
     """分析ダッシュボードページを提供"""
-    return RedirectResponse(url="/static/dashboard.html")
+    return FileResponse("app/static/dashboard.html")
 
 @app.get("/instagram-analysis", response_class=HTMLResponse)
 async def instagram_analysis_dashboard():
