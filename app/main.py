@@ -1036,8 +1036,8 @@ async def dashboard():
 
 @app.get("/instagram-analysis", response_class=HTMLResponse)
 async def instagram_analysis_dashboard():
-    """Instagram分析ダッシュボードページを提供"""
-    return RedirectResponse(url="/static/instagram_analysis.html")
+    """Instagram分析ダッシュボードページを提供（統合版ダッシュボードにリダイレクト）"""
+    return RedirectResponse(url="/static/dashboard.html#instagram-analysis-tab")
 
 @app.post("/analyze-instagram-post/", response_model=dict)
 async def analyze_instagram_post(
