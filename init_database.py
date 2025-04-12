@@ -83,6 +83,23 @@ def initialize_databases():
         )
         ''')
         
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS instagram_analysis (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_url TEXT NOT NULL,
+            views INTEGER,
+            likes INTEGER,
+            comments INTEGER,
+            caption TEXT,
+            hashtags TEXT,
+            posted_at TIMESTAMP,
+            high_engagement BOOLEAN DEFAULT 0,
+            transcript TEXT,
+            rewritten_script TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
         conn.commit()
         conn.close()
         print("Successfully initialized data.db with required tables")
