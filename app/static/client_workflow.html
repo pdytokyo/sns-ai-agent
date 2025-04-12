@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNS AIエージェント - コンテンツ作成ワークフロー</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/client_workflow.js" defer></script>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        .header {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            border-radius: 0 0 10px 10px;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            transition: transform 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            border: none;
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #11cb6a 0%, #25fc94 100%);
+            border: none;
+        }
+        .btn-info {
+            background: linear-gradient(135deg, #11b5cb 0%, #25c8fc 100%);
+            border: none;
+            color: white;
+        }
+        .step-container {
+            display: none;
+        }
+        .step-container.active {
+            display: block;
+        }
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+        .step-indicator::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: #dee2e6;
+            z-index: 1;
+        }
+        .step-indicator .step {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #dee2e6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            position: relative;
+            z-index: 2;
+        }
+        .step-indicator .step.active {
+            background-color: #6a11cb;
+            color: white;
+        }
+        .step-indicator .step.completed {
+            background-color: #11cb6a;
+            color: white;
+        }
+        .step-title {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-weight: bold;
+            color: #6a11cb;
+        }
+        .video-preview {
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .loading-spinner .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        .slider-container {
+            margin: 20px 0;
+        }
+        .slider-container .form-label {
+            display: flex;
+            justify-content: space-between;
+        }
+        .slider-container .form-label span {
+            font-weight: normal;
+        }
+        .script-proposal {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .script-proposal:hover {
+            border-color: #6a11cb;
+        }
+        .script-proposal.selected {
+            border: 2px solid #6a11cb;
+            background-color: rgba(106, 17, 203, 0.05);
+        }
+        .bgm-item {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .bgm-item:hover {
+            border-color: #6a11cb;
+        }
+        .bgm-item.selected {
+            border: 2px solid #6a11cb;
+            background-color: rgba(106, 17, 203, 0.05);
+        }
+        .subtitle-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .progress {
+            height: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+            text-align: center;
+            line-height: 20px;
+            font-weight: bold;
+            transition: width 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="header text-center">
+        <h1>SNS AIエージェント</h1>
+        <p class="lead">自動化されたSNSコンテンツ作成システム</p>
+    </div>
+
+    <div class="container">
+        <!-- ステップインジケーター -->
+        <div class="step-indicator">
+            <div class="step active" id="step-indicator-1">1</div>
+            <div class="step" id="step-indicator-2">2</div>
+            <div class="step" id="step-indicator-3">3</div>
+            <div class="step" id="step-indicator-4">4</div>
+            <div class="step" id="step-indicator-5">5</div>
+            <div class="step" id="step-indicator-6">6</div>
+            <div class="step" id="step-indicator-7">7</div>
+            <div class="step" id="step-indicator-8">8</div>
+            <div class="step" id="step-indicator-9">9</div>
+            <div class="step" id="step-indicator-10">10</div>
+            <div class="step" id="step-indicator-11">11</div>
+        </div>
+
+        <!-- ステップ1: クライアント情報入力 -->
+        <div class="step-container active" id="step-1">
+            <h2 class="step-title">ステップ1: 初期データ入力</h2>
+            <div class="card">
+                <div class="card-body">
+                    <form id="clientInfoForm">
+                        <div class="mb-4">
+                            <h5><i class="bi bi-person-circle"></i> クライアント基本情報</h5>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="clientName" class="form-label">クライアント名</label>
+                                    <input type="text" class="form-control" id="clientName" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="clientEmail" class="form-label">メールアドレス</label>
+                                    <input type="email" class="form-control" id="clientEmail" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5><i class="bi bi-bullseye"></i> SNS運用の目的</h5>
+                            <div class="row">
+                                <div class="col-md-3 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input purpose" type="checkbox" value="認知拡大" id="purpose1">
+                                        <label class="form-check-label" for="purpose1">認知拡大</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input purpose" type="checkbox" value="集客" id="purpose2">
+                                        <label class="form-check-label" for="purpose2">集客</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input purpose" type="checkbox" value="ブランド構築" id="purpose3">
+                                        <label class="form-check-label" for="purpose3">ブランド構築</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input purpose" type="checkbox" value="商品販売" id="purpose4">
+                                        <label class="form-check-label" for="purpose4">商品販売</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5><i class="bi bi-people-fill"></i> ターゲット属性</h5>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">年齢層（複数選択可）</label>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input target-attr" type="checkbox" value="10代" id="target1">
+                                                <label class="form-check-label" for="target1">10代</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input target-attr" type="checkbox" value="20代" id="target2">
+                                                <label class="form-check-label" for="target2">20代</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input target-attr" type="checkbox" value="30代" id="target3">
+                                                <label class="form-check-label" for="target3">30代</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input target-attr" type="checkbox" value="40代以上" id="target4">
+                                                <label class="form-check-label" for="target4">40代以上</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">性別（複数選択可）</label>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input target-attr" type="checkbox" value="男性" id="target5">
+                                                <label class="form-check-label" for="target5">男性</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input target-attr" type="checkbox" value="女性" id="target6">
+                                                <label class="form-check-label" for="target6">女性</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label for="targetInterests" class="form-label">興味・関心（カンマ区切りで入力）</label>
+                                    <input type="text" class="form-control" id="targetInterests" placeholder="例: 美容,健康,ファッション,テクノロジー">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5><i class="bi bi-share-fill"></i> 運用したいSNSプラットフォーム</h5>
+                            <div class="row">
+                                <div class="col-md-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input platform" type="checkbox" value="YouTube" id="platform1">
+                                        <label class="form-check-label" for="platform1">YouTube</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input platform" type="checkbox" value="Instagram" id="platform2">
+                                        <label class="form-check-label" for="platform2">Instagram</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input platform" type="checkbox" value="TikTok" id="platform3">
+                                        <label class="form-check-label" for="platform3">TikTok</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5><i class="bi bi-file-earmark-text"></i> 自社に関するデータ</h5>
+                            <div class="mb-3">
+                                <label for="companyDescription" class="form-label">会社・商品の説明</label>
+                                <textarea class="form-control" id="companyDescription" rows="3" placeholder="会社や商品・サービスについての説明を入力してください"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="youtubeUrls" class="form-label">参考YouTube URL（複数可、1行に1つ）</label>
+                                <textarea class="form-control" id="youtubeUrls" rows="2" placeholder="https://www.youtube.com/watch?v=..."></textarea>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="textFile" class="form-label">テキストファイル</label>
+                                    <input class="form-control" type="file" id="textFile" accept=".txt,.doc,.docx">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="pdfFile" class="form-label">PDFファイル</label>
+                                    <input class="form-control" type="file" id="pdfFile" accept=".pdf">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-end">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-arrow-right-circle"></i> 次へ進む
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ステップ2: 自動リサーチ（クライアントには非表示） -->
+        <div class="step-container" id="step-2">
+            <h2 class="step-title">ステップ2: 自動リサーチ</h2>
+            <div class="card">
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <i class="bi bi-search" style="font-size: 4rem; color: #6a11cb;"></i>
+                        <h4 class="mt-3">AIがあなたのデータを分析しています</h4>
+                        <p class="text-muted">最適なコンテンツ提案のために、競合分析とエンゲージメント調査を行っています。</p>
+                    </div>
+                    
+                    <div class="progress">
+                        <div class="progress-bar" id="researchProgressBar" style="width: 0%;">0%</div>
+                    </div>
+                    
+                    <div id="researchStatus" class="mb-4">
+                        <p><i class="bi bi-hourglass-split"></i> 分析を開始しています...</p>
+                    </div>
+                    
+                    <div class="text-muted mb-4">
+                        <small>※ 分析には数分かかる場合があります。このページを閉じずにお待ちください。</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ステップ3: 台本提案 -->
+        <div class="step-container" id="step-3">
+            <h2 class="step-title">ステップ3: 企画・台本提案</h2>
+            
+            <!-- 台本提案一覧 -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-file-text"></i> AIが生成した台本案</h5>
+                    <p class="text-muted mb-4">以下の台本案から最適なものを選択してください。選択後、内容を編集することもできます。</p>
+                    
+                    <div class="row" id="scriptProposalsContainer">
+                        <!-- 台本提案はJavaScriptで動的に生成 -->
+                        <div class="col-md-4 mb-3">
+                            <div class="card script-proposal" data-proposal-id="1">
+                                <div class="card-header">
+                                    <h6 class="mb-0">エモーショナルスタイル</h6>
+                                </div>
+                                <div class="card-body">
+                                    <h6 class="proposal-title">タイトル: 心に響く〇〇の魅力</h6>
+                                    <p class="proposal-content">あなたは今、何を求めていますか？毎日の忙しさの中で、ふと立ち止まって考えることはありますか？私たちの〇〇は、そんなあなたの心に寄り添います...</p>
+                                </div>
+                                <div class="card-footer text-center">
+                                    <button class="btn btn-sm btn-outline-primary select-script-btn">選択</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card script-proposal" data-proposal-id="2">
+                                <div class="card-header">
+                                    <h6 class="mb-0">情報提供型スタイル</h6>
+                                </div>
+                                <div class="card-body">
+                                    <h6 class="proposal-title">タイトル: 知っておきたい〇〇の基礎知識</h6>
+                                    <p class="proposal-content">こんにちは！今日は〇〇について知っておくべき3つのポイントをご紹介します。多くの方が見落としがちなこの情報を知ることで、あなたの生活は大きく変わるかもしれません...</p>
+                                </div>
+                                <div class="card-footer text-center">
+                                    <button class="btn btn-sm btn-outline-primary select-script-btn">選択</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card script-proposal" data-proposal-id="3">
+                                <div class="card-header">
+                                    <h6 class="mb-0">ストーリーテリング</h6>
+                                </div>
+                                <div class="card-body">
+                                    <h6 class="proposal-title">タイトル: 〇〇が私の人生を変えた日</h6>
+                                    <p class="proposal-content">私がはじめて〇〇と出会ったのは3年前のことでした。当時の私は悩みを抱え、解決策を探していました。そんなとき、友人から紹介されたのが〇〇だったのです...</p>
+                                </div>
+                                <div class="card-footer text-center">
+                                    <button class="btn btn-sm btn-outline-primary select-script-btn">選択</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="scriptProposalNavButtons" class="text-center mt-4">
+                        <button id="refreshProposalsBtn" class="btn btn-outline-primary">
+                            <i class="bi bi-arrow-repeat"></i> 新しい提案を生成
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 台本編集 -->
+            <div class="card" id="scriptEditCard" style="display: none;">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-pencil-square"></i> 台本を編集</h5>
+                    
+                    <form id="scriptEditForm">
+                        <div class="mb-3">
+                            <label for="scriptTitle" class="form-label">タイトル</label>
+                            <input type="text" class="form-control" id="scriptTitle">
+                        </div>
+                        <div class="mb-3">
+                            <label for="scriptContent" class="form-label">台本内容</label>
+                            <textarea class="form-control" id="scriptContent" rows="10"></textarea>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <button type="button" id="backToProposalsBtn" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> 提案一覧に戻る
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> 確定して次へ
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ステップ4: 撮影指示書 -->
+        <div class="step-container" id="step-4">
+            <h2 class="step-title">ステップ4: 撮影指示書</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4" id="shootingInstructionsTitle"><i class="bi bi-camera-video"></i> 「タイトル」の撮影指示書</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> この撮影指示書は選択した台本に基づいて自動生成されています。指示に従って撮影することで、効果的な動画を作成できます。
+                    </div>
+                    
+                    <div id="shootingInstructionsContent" class="mt-4">
+                        <h6>1. 必要な撮影機材</h6>
+                        <ul>
+                            <li>スマートフォンまたはカメラ（1080p以上の解像度推奨）</li>
+                            <li>三脚またはスタビライザー</li>
+                            <li>マイク（クリアな音声のため）</li>
+                            <li>照明機材（自然光でも可）</li>
+                        </ul>
+                        
+                        <h6>2. 撮影場所の設定と準備</h6>
+                        <p>清潔で整理された背景を選びましょう。自宅やオフィスの一角でも構いませんが、背景に余計なものが映り込まないよう注意してください。ブランドカラーを取り入れた背景だと効果的です。</p>
+                        
+                        <h6>3. 照明と音声の設定</h6>
+                        <p>自然光が入る場所で撮影するか、柔らかい照明を使用してください。逆光は避け、顔が明るく見えるようにしましょう。マイクは口元から15-20cm程度の距離に設置し、周囲の雑音を最小限に抑えてください。</p>
+                        
+                        <h6>4. 各シーンの具体的な撮影方法</h6>
+                        <ol>
+                            <li><strong>オープニング（0:00-0:15）</strong>: カメラに向かって笑顔で挨拶し、今回の内容を簡潔に紹介します。</li>
+                            <li><strong>導入部（0:15-0:45）</strong>: 視聴者の共感を得られるような問いかけや事例を紹介します。</li>
+                            <li><strong>本編（0:45-2:30）</strong>: 台本に沿って、ポイントを明確に伝えます。適宜、製品やサービスの実演を交えると効果的です。</li>
+                            <li><strong>まとめ（2:30-3:00）</strong>: 重要なポイントを再度強調し、視聴者に行動を促します。</li>
+                        </ol>
+                        
+                        <h6>5. 演出のポイント</h6>
+                        <ul>
+                            <li>カメラ目線を意識し、視聴者と会話するようなトーンで話しかけてください。</li>
+                            <li>ジェスチャーを適度に使い、表情豊かに話すと印象に残ります。</li>
+                            <li>台本を暗記する必要はありませんが、自然な話し方を心がけてください。</li>
+                            <li>重要なポイントでは少し間を取り、強調するとメッセージが伝わりやすくなります。</li>
+                        </ul>
+                        
+        <!-- ステップ6: 自動カット編集 -->
+        <div class="step-container" id="step-6">
+            <h2 class="step-title">ステップ6: 自動カット編集</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-scissors"></i> 無音部分の自動カット</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 無音部分や不要な間を自動でカットします。カット位置や再生速度を調整することもできます。
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6>元の動画</h6>
+                            <video id="originalVideo" class="video-preview" controls></video>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>処理後の動画</h6>
+                            <video id="processedVideo" class="video-preview" controls></video>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">編集設定</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="silenceThreshold" class="form-label">無音判定しきい値</label>
+                                <div class="slider-container">
+                                    <input type="range" class="form-range" id="silenceThreshold" min="0.01" max="0.1" step="0.01" value="0.02">
+                                    <div class="form-label d-flex justify-content-between">
+                                        <span>低（多くカット）</span>
+                                        <span id="silenceThresholdValue">0.02</span>
+                                        <span>高（少なくカット）</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="playbackSpeed" class="form-label">再生速度</label>
+                                <div class="slider-container">
+                                    <input type="range" class="form-range" id="playbackSpeed" min="0.5" max="2.0" step="0.1" value="1.0">
+                                    <div class="form-label d-flex justify-content-between">
+                                        <span>0.5x</span>
+                                        <span id="playbackSpeedValue">1.0x</span>
+                                        <span>2.0x</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center">
+                                <button id="applyEditSettingsBtn" class="btn btn-primary">
+                                    <i class="bi bi-check-circle"></i> 設定を適用
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="loading-spinner" id="processingSpinner" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">動画を処理中...</p>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button id="backToStep5Btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> 動画アップロードに戻る
+                        </button>
+                        <button id="goToStep7Btn" class="btn btn-primary">
+                            <i class="bi bi-arrow-right"></i> 字幕生成へ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ステップ7: 自動テロップ生成 -->
+        <div class="step-container" id="step-7">
+            <h2 class="step-title">ステップ7: 自動テロップ生成</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-chat-square-text"></i> 字幕の自動生成</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> AIが動画の音声を認識し、自動で字幕を生成します。生成された字幕は編集可能です。
+                    </div>
+                    
+                    <div class="mb-4">
+                        <video id="videoWithSubtitles" class="video-preview" controls></video>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">字幕編集</h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="subtitlesContainer">
+                                <!-- 字幕アイテムはJavaScriptで動的に生成 -->
+                                <div class="subtitle-item">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted">00:00 - 00:05</span>
+                                        <div>
+                                            <button class="btn btn-sm btn-outline-primary me-1 play-segment-btn">
+                                                <i class="bi bi-play-fill"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger delete-subtitle-btn">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <textarea class="form-control subtitle-text" rows="2">こんにちは、今日は〇〇について話します。</textarea>
+                                </div>
+                                <div class="subtitle-item">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted">00:06 - 00:12</span>
+                                        <div>
+                                            <button class="btn btn-sm btn-outline-primary me-1 play-segment-btn">
+                                                <i class="bi bi-play-fill"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger delete-subtitle-btn">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <textarea class="form-control subtitle-text" rows="2">多くの方が〇〇について知りたいと思っているのではないでしょうか？</textarea>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center mt-3">
+                                <button id="regenerateSubtitlesBtn" class="btn btn-outline-primary">
+                                    <i class="bi bi-arrow-repeat"></i> 字幕を再生成
+                                </button>
+                                <button id="applySubtitlesBtn" class="btn btn-primary ms-2">
+                                    <i class="bi bi-check-circle"></i> 字幕を適用
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="loading-spinner" id="subtitleSpinner" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">字幕を生成中...</p>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button id="backToStep6Btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> 動画編集に戻る
+                        </button>
+                        <button id="goToStep8Btn" class="btn btn-primary">
+                            <i class="bi bi-arrow-right"></i> BGM提案へ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ステップ8: BGM自動提案 -->
+        <div class="step-container" id="step-8">
+            <h2 class="step-title">ステップ8: BGM自動提案</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-music-note-beamed"></i> BGMの自動提案</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 動画の内容に合ったBGMを自動で提案します。試聴して最適なものを選択してください。
+                    </div>
+                    
+                    <div class="row" id="bgmProposalsContainer">
+                        <!-- BGM提案はJavaScriptで動的に生成 -->
+                        <div class="col-md-4 mb-3">
+                            <div class="card bgm-item" data-bgm-id="1">
+                                <div class="card-body">
+                                    <h6 class="bgm-title">爽やかなアコースティック</h6>
+                                    <p class="text-muted small">明るく前向きな雰囲気の曲です</p>
+                                    <div class="text-center">
+                                        <audio controls class="w-100 mb-2">
+                                            <source src="#" type="audio/mpeg">
+                                        </audio>
+                                        <button class="btn btn-sm btn-outline-primary select-bgm-btn">選択</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card bgm-item" data-bgm-id="2">
+                                <div class="card-body">
+                                    <h6 class="bgm-title">モダンポップ</h6>
+                                    <p class="text-muted small">現代的でスタイリッシュな印象を与えます</p>
+                                    <div class="text-center">
+                                        <audio controls class="w-100 mb-2">
+                                            <source src="#" type="audio/mpeg">
+                                        </audio>
+                                        <button class="btn btn-sm btn-outline-primary select-bgm-btn">選択</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card bgm-item" data-bgm-id="3">
+                                <div class="card-body">
+                                    <h6 class="bgm-title">エモーショナルピアノ</h6>
+                                    <p class="text-muted small">感動的で心に響く雰囲気を演出します</p>
+                                    <div class="text-center">
+                                        <audio controls class="w-100 mb-2">
+                                            <source src="#" type="audio/mpeg">
+                                        </audio>
+                                        <button class="btn btn-sm btn-outline-primary select-bgm-btn">選択</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-3 mb-4">
+                        <button id="refreshBgmBtn" class="btn btn-outline-primary">
+                            <i class="bi bi-arrow-repeat"></i> 別のBGMを提案
+                        </button>
+                    </div>
+                    
+                    <div class="loading-spinner" id="bgmSpinner" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">BGMを検索中...</p>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button id="backToStep7Btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> 字幕生成に戻る
+                        </button>
+                        <button id="goToStep9Btn" class="btn btn-primary">
+                            <i class="bi bi-arrow-right"></i> BGM挿入へ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ステップ9: BGM挿入と微調整 -->
+        <div class="step-container" id="step-9">
+            <h2 class="step-title">ステップ9: BGM挿入と微調整</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-sliders"></i> BGM音量の調整</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 選択したBGMを動画に挿入し、音量バランスを調整します。
+                    </div>
+                    
+                    <div class="mb-4">
+                        <video id="videoWithBgm" class="video-preview" controls></video>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">音量設定</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="bgmVolume" class="form-label">BGM音量</label>
+                                <div class="slider-container">
+                                    <input type="range" class="form-range" id="bgmVolume" min="0" max="1" step="0.1" value="0.5">
+                                    <div class="form-label d-flex justify-content-between">
+                                        <span>0%</span>
+                                        <span id="bgmVolumeValue">50%</span>
+                                        <span>100%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center">
+                                <button id="applyBgmSettingsBtn" class="btn btn-primary">
+                                    <i class="bi bi-check-circle"></i> 設定を適用
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="loading-spinner" id="bgmProcessingSpinner" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">BGMを適用中...</p>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button id="backToStep8Btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> BGM選択に戻る
+                        </button>
+                        <button id="goToStep10Btn" class="btn btn-primary">
+                            <i class="bi bi-arrow-right"></i> 完成動画へ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ステップ10: 完成動画のダウンロード -->
+        <div class="step-container" id="step-10">
+            <h2 class="step-title">ステップ10: 完成動画のダウンロード</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-download"></i> 完成動画のダウンロード</h5>
+                    
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> おめでとうございます！動画の編集が完了しました。以下から完成動画をダウンロードできます。
+                    </div>
+                    
+                    <div class="mb-4">
+                        <video id="finalVideo" class="video-preview" controls></video>
+                    </div>
+                    
+                    <div class="text-center mb-4">
+                        <button id="downloadFinalVideoBtn" class="btn btn-lg btn-success">
+                            <i class="bi bi-download"></i> 完成動画をダウンロード
+                        </button>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">動画情報</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>タイトル:</strong> <span id="finalVideoTitle">〇〇の魅力</span></p>
+                                    <p><strong>長さ:</strong> <span id="finalVideoDuration">2分30秒</span></p>
+                                    <p><strong>サイズ:</strong> <span id="finalVideoSize">24.5 MB</span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>解像度:</strong> <span id="finalVideoResolution">1920x1080</span></p>
+                                    <p><strong>フォーマット:</strong> <span id="finalVideoFormat">MP4</span></p>
+                                    <p><strong>作成日時:</strong> <span id="finalVideoCreatedAt">2023/04/12 15:30</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button id="backToStep9Btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> BGM調整に戻る
+                        </button>
+                        <button id="goToStep11Btn" class="btn btn-primary">
+                            <i class="bi bi-arrow-right"></i> 運用効果分析へ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ステップ11: 運用効果の確認と自動アドバイス -->
+        <div class="step-container" id="step-11">
+            <h2 class="step-title">ステップ11: 運用効果の確認と自動アドバイス</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-graph-up"></i> SNS運用効果の分析</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> SNSアカウントを紐付けると、投稿後のエンゲージメントを自動取得し、運用改善のアドバイスを提供します。
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">SNSアカウント連携</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <div class="d-grid">
+                                        <button class="btn btn-outline-danger">
+                                            <i class="bi bi-youtube"></i> YouTubeと連携
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <div class="d-grid">
+                                        <button class="btn btn-outline-primary">
+                                            <i class="bi bi-instagram"></i> Instagramと連携
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <div class="d-grid">
+                                        <button class="btn btn-outline-dark">
+                                            <i class="bi bi-tiktok"></i> TikTokと連携
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">エンゲージメント分析</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted text-center">SNSアカウントを連携すると、ここにエンゲージメント分析が表示されます。</p>
+                            
+                            <div id="engagementChart" style="height: 300px; display: none;"></div>
+                            
+                            <div id="analyticsData" style="display: none;">
+                                <div class="row mt-4">
+                                    <div class="col-md-3 mb-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h3 id="viewCount">0</h3>
+                                                <p class="mb-0">視聴回数</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h3 id="likeCount">0</h3>
+                                                <p class="mb-0">いいね数</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h3 id="commentCount">0</h3>
+                                                <p class="mb-0">コメント数</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h3 id="engagementRate">0%</h3>
+                                                <p class="mb-0">エンゲージメント率</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">運用改善アドバイス</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted text-center">SNSアカウントを連携すると、ここに運用改善のアドバイスが表示されます。</p>
+                            
+                            <div id="adviceContent" style="display: none;">
+                                <h6>改善ポイント</h6>
+                                <ul>
+                                    <li>動画の冒頭15秒でより強いフックを使用することで、視聴継続率が向上する可能性があります。</li>
+                                    <li>コメントへの返信率を上げることで、エンゲージメントが向上する傾向があります。</li>
+                                    <li>同様のコンテンツで成功している競合アカウントは、週に2-3回の投稿頻度を維持しています。</li>
+                                </ul>
+                                
+                                <h6>次回の動画提案</h6>
+                                <p>現在のエンゲージメントデータに基づくと、次回は「〇〇のハウツー」というテーマで動画を作成すると効果的です。</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="loading-spinner" id="analyticsSpinner" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">分析データを取得中...</p>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button id="backToStep10Btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> 完成動画に戻る
+                        </button>
+                        <button id="finishWorkflowBtn" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> ワークフローを完了
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <!-- ステップ5: 動画アップロード -->
+
+        <!-- ステップ5: 動画アップロード -->
+        <div class="step-container" id="step-5">
+            <h2 class="step-title">ステップ5: 動画アップロード</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-upload"></i> 撮影した動画をアップロード</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 撮影指示書に従って撮影した動画をアップロードしてください。MP4形式を推奨します。
+                    </div>
+                    
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">
+                            <i class="bi bi-cloud-arrow-up"></i>
+                        </div>
+                        <h5>ここにファイルをドラッグ＆ドロップ</h5>
+                        <p class="text-muted">または</p>
+                        <input type="file" id="videoFile" class="d-none" accept="video/mp4,video/quicktime">
+                        <button id="browseBtn" class="btn btn-primary">
+                            <i class="bi bi-folder"></i> ファイルを選択
+                        </button>
+                        <p class="mt-2 text-muted small">最大ファイルサイズ: 500MB</p>
+                    </div>
+                    
+                    <div id="uploadProgress" class="progress" style="display: none;">
+                        <div class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                    </div>
+                    
+                    <div id="uploadedVideo" class="mt-4" style="display: none;">
+                        <h6>アップロードした動画:</h6>
+                        <video id="videoPreview" class="video-preview" controls></video>
+                        <div class="d-flex justify-content-end mt-2">
+                            <button id="reuploadBtn" class="btn btn-outline-secondary me-2">
+                                <i class="bi bi-arrow-repeat"></i> 再アップロード
+                            </button>
+                            <button id="continueToEditBtn" class="btn btn-primary">
+                                <i class="bi bi-scissors"></i> 編集へ進む
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="loading-spinner" id="uploadSpinner">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">動画をアップロード中...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+                        
+        <!-- ステップ6: 自動カット編集 -->
+        <div class="step-container" id="step-6">
+            <h2 class="step-title">ステップ6: 自動カット編集</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-scissors"></i> 無音部分の自動カット</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 無音部分や不要な間を自動でカットします。カット位置や再生速度を調整することもできます。
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6>元の動画</h6>
+                            <video id="originalVideo" class="video-preview" controls></video>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>処理後の動画</h6>
+                            <video id="processedVideo" class="video-preview" controls></video>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">編集設定</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="silenceThreshold" class="form-label">無音判定しきい値</label>
+                                <div class="slider-container">
+                                    <input type="range" class="form-range" id="silenceThreshold" min="0.01" max="0.1" step="0.01" value="0.02">
+                                    <div class="form-label d-flex justify-content-between">
+                                        <span>低（多くカット）</span>
+                                        <span id="silenceThresholdValue">0.02</span>
+                                        <span>高（少なくカット）</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="playbackSpeed" class="form-label">再生速度</label>
+                                <div class="slider-container">
+                                    <input type="range" class="form-range" id="playbackSpeed" min="0.5" max="2.0" step="0.1" value="1.0">
+                                    <div class="form-label d-flex justify-content-between">
+                                        <span>0.5x</span>
+                                        <span id="playbackSpeedValue">1.0x</span>
+                                        <span>2.0x</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center">
+                                <button id="applyEditSettingsBtn" class="btn btn-primary">
+                                    <i class="bi bi-check-circle"></i> 設定を適用
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="loading-spinner" id="processingSpinner" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">動画を処理中...</p>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button id="backToStep5Btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> 動画アップロードに戻る
+                        </button>
+                        <button id="goToStep7Btn" class="btn btn-primary">
+                            <i class="bi bi-arrow-right"></i> 字幕生成へ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ステップ7: 自動テロップ生成 -->
+        <div class="step-container" id="step-7">
+            <h2 class="step-title">ステップ7: 自動テロップ生成</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-chat-square-text"></i> 字幕の自動生成</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> AIが動画の音声を認識し、自動で字幕を生成します。生成された字幕は編集可能です。
+                    </div>
+                    
+                    <div class="mb-4">
+                        <video id="videoWithSubtitles" class="video-preview" controls></video>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">字幕編集</h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="subtitlesContainer">
+                                <!-- 字幕アイテムはJavaScriptで動的に生成 -->
+                                <div class="subtitle-item">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted">00:00 - 00:05</span>
+                                        <div>
+                                            <button class="btn btn-sm btn-outline-primary me-1 play-segment-btn">
+                                                <i class="bi bi-play-fill"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger delete-subtitle-btn">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <textarea class="form-control subtitle-text" rows="2">こんにちは、今日は〇〇について話します。</textarea>
+                                </div>
+                                <div class="subtitle-item">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted">00:06 - 00:12</span>
+                                        <div>
+                                            <button class="btn btn-sm btn-outline-primary me-1 play-segment-btn">
+                                                <i class="bi bi-play-fill"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger delete-subtitle-btn">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <textarea class="form-control subtitle-text" rows="2">多くの方が〇〇について知りたいと思っているのではないでしょうか？</textarea>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center mt-3">
+                                <button id="regenerateSubtitlesBtn" class="btn btn-outline-primary">
+                                    <i class="bi bi-arrow-repeat"></i> 字幕を再生成
+                                </button>
+                                <button id="applySubtitlesBtn" class="btn btn-primary ms-2">
+                                    <i class="bi bi-check-circle"></i> 字幕を適用
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="loading-spinner" id="subtitleSpinner" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">字幕を生成中...</p>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button id="backToStep6Btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> 動画編集に戻る
+                        </button>
+                        <button id="goToStep8Btn" class="btn btn-primary">
+                            <i class="bi bi-arrow-right"></i> BGM提案へ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ステップ8: BGM自動提案 -->
+        <div class="step-container" id="step-8">
+            <h2 class="step-title">ステップ8: BGM自動提案</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-music-note-beamed"></i> BGMの自動提案</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 動画の内容に合ったBGMを自動で提案します。試聴して最適なものを選択してください。
+                    </div>
+                    
+                    <div class="row" id="bgmProposalsContainer">
+                        <!-- BGM提案はJavaScriptで動的に生成 -->
+                        <div class="col-md-4 mb-3">
+                            <div class="card bgm-item" data-bgm-id="1">
+                                <div class="card-body">
+                                    <h6 class="bgm-title">爽やかなアコースティック</h6>
+                                    <p class="text-muted small">明るく前向きな雰囲気の曲です</p>
+                                    <div class="text-center">
+                                        <audio controls class="w-100 mb-2">
+                                            <source src="#" type="audio/mpeg">
+                                        </audio>
+                                        <button class="btn btn-sm btn-outline-primary select-bgm-btn">選択</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card bgm-item" data-bgm-id="2">
+                                <div class="card-body">
+                                    <h6 class="bgm-title">モダンポップ</h6>
+                                    <p class="text-muted small">現代的でスタイリッシュな印象を与えます</p>
+                                    <div class="text-center">
+                                        <audio controls class="w-100 mb-2">
+                                            <source src="#" type="audio/mpeg">
+                                        </audio>
+                                        <button class="btn btn-sm btn-outline-primary select-bgm-btn">選択</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card bgm-item" data-bgm-id="3">
+                                <div class="card-body">
+                                    <h6 class="bgm-title">エモーショナルピアノ</h6>
+                                    <p class="text-muted small">感動的で心に響く雰囲気を演出します</p>
+                                    <div class="text-center">
+                                        <audio controls class="w-100 mb-2">
+                                            <source src="#" type="audio/mpeg">
+                                        </audio>
+                                        <button class="btn btn-sm btn-outline-primary select-bgm-btn">選択</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-3 mb-4">
+                        <button id="refreshBgmBtn" class="btn btn-outline-primary">
+                            <i class="bi bi-arrow-repeat"></i> 別のBGMを提案
+                        </button>
+                    </div>
+                    
+                    <div class="loading-spinner" id="bgmSpinner" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">BGMを検索中...</p>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button id="backToStep7Btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> 字幕生成に戻る
+                        </button>
+                        <button id="goToStep9Btn" class="btn btn-primary">
+                            <i class="bi bi-arrow-right"></i> BGM挿入へ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ステップ9: BGM挿入と微調整 -->
+        <div class="step-container" id="step-9">
+            <h2 class="step-title">ステップ9: BGM挿入と微調整</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-sliders"></i> BGM音量の調整</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 選択したBGMを動画に挿入し、音量バランスを調整します。
+                    </div>
+                    
+                    <div class="mb-4">
+                        <video id="videoWithBgm" class="video-preview" controls></video>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">音量設定</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="bgmVolume" class="form-label">BGM音量</label>
+                                <div class="slider-container">
+                                    <input type="range" class="form-range" id="bgmVolume" min="0" max="1" step="0.1" value="0.5">
+                                    <div class="form-label d-flex justify-content-between">
+                                        <span>0%</span>
+                                        <span id="bgmVolumeValue">50%</span>
+                                        <span>100%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center">
+                                <button id="applyBgmSettingsBtn" class="btn btn-primary">
+                                    <i class="bi bi-check-circle"></i> 設定を適用
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="loading-spinner" id="bgmProcessingSpinner" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">BGMを適用中...</p>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button id="backToStep8Btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> BGM選択に戻る
+                        </button>
+                        <button id="goToStep10Btn" class="btn btn-primary">
+                            <i class="bi bi-arrow-right"></i> 完成動画へ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ステップ10: 完成動画のダウンロード -->
+        <div class="step-container" id="step-10">
+            <h2 class="step-title">ステップ10: 完成動画のダウンロード</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-download"></i> 完成動画のダウンロード</h5>
+                    
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> おめでとうございます！動画の編集が完了しました。以下から完成動画をダウンロードできます。
+                    </div>
+                    
+                    <div class="mb-4">
+                        <video id="finalVideo" class="video-preview" controls></video>
+                    </div>
+                    
+                    <div class="text-center mb-4">
+                        <button id="downloadFinalVideoBtn" class="btn btn-lg btn-success">
+                            <i class="bi bi-download"></i> 完成動画をダウンロード
+                        </button>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">動画情報</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>タイトル:</strong> <span id="finalVideoTitle">〇〇の魅力</span></p>
+                                    <p><strong>長さ:</strong> <span id="finalVideoDuration">2分30秒</span></p>
+                                    <p><strong>サイズ:</strong> <span id="finalVideoSize">24.5 MB</span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>解像度:</strong> <span id="finalVideoResolution">1920x1080</span></p>
+                                    <p><strong>フォーマット:</strong> <span id="finalVideoFormat">MP4</span></p>
+                                    <p><strong>作成日時:</strong> <span id="finalVideoCreatedAt">2023/04/12 15:30</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button id="backToStep9Btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> BGM調整に戻る
+                        </button>
+                        <button id="goToStep11Btn" class="btn btn-primary">
+                            <i class="bi bi-arrow-right"></i> 運用効果分析へ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ステップ11: 運用効果の確認と自動アドバイス -->
+        <div class="step-container" id="step-11">
+            <h2 class="step-title">ステップ11: 運用効果の確認と自動アドバイス</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4"><i class="bi bi-graph-up"></i> SNS運用効果の分析</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> SNSアカウントを紐付けると、投稿後のエンゲージメントを自動取得し、運用改善のアドバイスを提供します。
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">SNSアカウント連携</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <div class="d-grid">
+                                        <button class="btn btn-outline-danger">
+                                            <i class="bi bi-youtube"></i> YouTubeと連携
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <div class="d-grid">
+                                        <button class="btn btn-outline-primary">
+                                            <i class="bi bi-instagram"></i> Instagramと連携
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <div class="d-grid">
+                                        <button class="btn btn-outline-dark">
+                                            <i class="bi bi-tiktok"></i> TikTokと連携
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">エンゲージメント分析</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted text-center">SNSアカウントを連携すると、ここにエンゲージメント分析が表示されます。</p>
+                            
+                            <div id="engagementChart" style="height: 300px; display: none;"></div>
+                            
+                            <div id="analyticsData" style="display: none;">
+                                <div class="row mt-4">
+                                    <div class="col-md-3 mb-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h3 id="viewCount">0</h3>
+                                                <p class="mb-0">視聴回数</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h3 id="likeCount">0</h3>
+                                                <p class="mb-0">いいね数</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h3 id="commentCount">0</h3>
+                                                <p class="mb-0">コメント数</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h3 id="engagementRate">0%</h3>
+                                                <p class="mb-0">エンゲージメント率</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">運用改善アドバイス</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted text-center">SNSアカウントを連携すると、ここに運用改善のアドバイスが表示されます。</p>
+                            
+                            <div id="adviceContent" style="display: none;">
+                                <h6>改善ポイント</h6>
+                                <ul>
+                                    <li>動画の冒頭15秒でより強いフックを使用することで、視聴継続率が向上する可能性があります。</li>
+                                    <li>コメントへの返信率を上げることで、エンゲージメントが向上する傾向があります。</li>
+                                    <li>同様のコンテンツで成功している競合アカウントは、週に2-3回の投稿頻度を維持しています。</li>
+                                </ul>
+                                
+                                <h6>次回の動画提案</h6>
+                                <p>現在のエンゲージメントデータに基づくと、次回は「〇〇のハウツー」というテーマで動画を作成すると効果的です。</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="loading-spinner" id="analyticsSpinner" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">分析データを取得中...</p>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button id="backToStep10Btn" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> 完成動画に戻る
+                        </button>
+                        <button id="finishWorkflowBtn" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> ワークフローを完了
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ステップコンテナの続き -->
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/client_workflow.js"></script>
+    <script src="js/workflow-tab-fix.js"></script>
+</body>
+</html>
