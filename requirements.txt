@@ -12,3 +12,5 @@ youtube-transcript-api==0.6.1
 requests==2.31.0
 pytrends==4.9.2
 schedule==1.2.0
+instaloader==4.9.5
+yt-dlp==2023.7.6
