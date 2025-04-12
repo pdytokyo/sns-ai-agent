@@ -48,6 +48,19 @@
             display: inline-block;
             margin-right: 5px;
         }
+        .engagement-high {
+            color: green;
+            font-weight: bold;
+        }
+        .engagement-low {
+            color: grey;
+        }
+        pre {
+            white-space: pre-wrap;
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+        }
     </style>
 </head>
 <body>
@@ -102,7 +115,97 @@
                         </ul>
                         <div class="tab-content p-3" id="analysisTabContent">
                             <div class="tab-pane fade show active" id="youtube-analysis" role="tabpanel"></div>
-                            <div class="tab-pane fade" id="instagram-analysis" role="tabpanel"></div>
+                            <div class="tab-pane fade" id="instagram-analysis" role="tabpanel">
+                                <!-- Instagramの分析フォーム -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        Instagram投稿URL分析
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="instagramAnalysisForm">
+                                            <div class="mb-3">
+                                                <label for="instagramPostUrl" class="form-label">Instagram投稿URL</label>
+                                                <input type="text" class="form-control" id="instagramPostUrl" placeholder="https://www.instagram.com/p/..." required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="instagramClientId" class="form-label">クライアントID（リライト用、任意）</label>
+                                                <input type="number" class="form-control" id="instagramClientId" placeholder="クライアントID">
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">
+                                                <span class="spinner-border spinner-border-sm" id="instagramAnalysisSpinner" style="display: none;" role="status" aria-hidden="true"></span>
+                                                分析する
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                                
+                                <!-- 分析結果表示エリア -->
+                                <div id="instagramResultCard" class="card" style="display: none;">
+                                    <div class="card-header">
+                                        分析結果
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h5>基本情報</h5>
+                                                <p><strong>投稿URL:</strong> <span id="instagramResultUrl"></span></p>
+                                                <p><strong>再生数:</strong> <span id="instagramResultViews"></span></p>
+                                                <p><strong>いいね数:</strong> <span id="instagramResultLikes"></span></p>
+                                                <p><strong>コメント数:</strong> <span id="instagramResultComments"></span></p>
+                                                <p><strong>エンゲージメント率:</strong> <span id="instagramResultEngagement"></span></p>
+                                                <p><strong>高エンゲージメント:</strong> <span id="instagramResultHighEngagement"></span></p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h5>コンテンツ情報</h5>
+                                                <p><strong>キャプション:</strong> <span id="instagramResultCaption"></span></p>
+                                                <p><strong>ハッシュタグ:</strong> <span id="instagramResultHashtags"></span></p>
+                                                <p><strong>投稿日時:</strong> <span id="instagramResultPostedAt"></span></p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div id="instagramTranscriptSection" style="display: none;">
+                                            <hr>
+                                            <h5>文字起こし結果</h5>
+                                            <pre id="instagramResultTranscript"></pre>
+                                        </div>
+                                        
+                                        <div id="instagramRewrittenSection" style="display: none;">
+                                            <hr>
+                                            <h5>リライト結果</h5>
+                                            <pre id="instagramResultRewritten"></pre>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 過去の分析結果一覧 -->
+                                <div class="mt-4">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h5>過去の分析結果</h5>
+                                        <button id="instagramRefreshButton" class="btn btn-sm btn-outline-secondary">
+                                            <span class="spinner-border spinner-border-sm" id="instagramRefreshSpinner" style="display: none;" role="status" aria-hidden="true"></span>
+                                            更新
+                                        </button>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>ID</th>
+                                                    <th>URL</th>
+                                                    <th>再生数</th>
+                                                    <th>エンゲージメント率</th>
+                                                    <th>高エンゲージメント</th>
+                                                    <th>文字起こし</th>
+                                                    <th>操作</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="instagramAnalysisTable">
+                                                <!-- JavaScriptで動的に生成 -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="tab-pane fade" id="tiktok-analysis" role="tabpanel"></div>
                         </div>
                     </div>
@@ -151,9 +254,14 @@
                 const usageResponse = await fetch('/api/script-usage/stats');
                 const usageData = await usageResponse.json();
                 
+                // Instagram分析データの取得
+                const instagramResponse = await fetch('/get-instagram-analysis/');
+                const instagramData = await instagramResponse.json();
+                
                 // データを表示
                 displayTrends(trendsData);
                 displayAnalysis(analysisData);
+                displayInstagramAnalysis(instagramData);
                 createUsageChart(usageData);
                 createEngagementChart(analysisData);
                 
@@ -333,8 +441,197 @@
             });
         }
         
+        // Instagram分析表示関数
+        function displayInstagramAnalysis(data) {
+            const tableBody = document.getElementById('instagramAnalysisTable');
+            if (!tableBody) return;
+            
+            // テーブルをクリア
+            tableBody.innerHTML = '';
+            
+            if (!data || data.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="7" class="text-center">データがありません</td>';
+                tableBody.appendChild(row);
+                return;
+            }
+            
+            // データを表示
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                
+                // エンゲージメント率の計算と表示クラスの決定
+                const engagementRate = item.views > 0 ? ((item.likes + item.comments) / item.views * 100).toFixed(2) : 'N/A';
+                const engagementClass = item.high_engagement ? 'engagement-high' : 'engagement-low';
+                
+                // 短縮URL
+                const shortUrl = item.post_url.length > 30 ? 
+                    item.post_url.substring(0, 30) + '...' : 
+                    item.post_url;
+                
+                row.innerHTML = `
+                    <td>${item.id}</td>
+                    <td><a href="${item.post_url}" target="_blank">${shortUrl}</a></td>
+                    <td>${item.views?.toLocaleString() || 'N/A'}</td>
+                    <td class="${engagementClass}">${engagementRate}%</td>
+                    <td>${item.high_engagement ? '✅' : '❌'}</td>
+                    <td>${item.transcript ? '✅' : '❌'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary view-details" data-id="${item.id}">詳細</button>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // 詳細ボタンのイベントリスナーを追加
+            document.querySelectorAll('.view-details').forEach(button => {
+                button.addEventListener('click', async () => {
+                    const id = button.getAttribute('data-id');
+                    try {
+                        const response = await fetch(`/get-instagram-analysis/${id}`);
+                        const data = await response.json();
+                        if (data) {
+                            displayInstagramResult(data);
+                        }
+                    } catch (error) {
+                        console.error('詳細取得エラー:', error);
+                    }
+                });
+            });
+        }
+        
+        // Instagram分析結果表示関数
+        function displayInstagramResult(data) {
+            // 結果カードを表示
+            const resultCard = document.getElementById('instagramResultCard');
+            resultCard.style.display = 'block';
+            
+            // 基本情報を表示
+            document.getElementById('instagramResultUrl').textContent = data.post_url || 'N/A';
+            document.getElementById('instagramResultViews').textContent = data.views?.toLocaleString() || 'N/A';
+            document.getElementById('instagramResultLikes').textContent = data.likes?.toLocaleString() || 'N/A';
+            document.getElementById('instagramResultComments').textContent = data.comments?.toLocaleString() || 'N/A';
+            
+            // エンゲージメント率を計算して表示
+            const engagementRate = data.views > 0 ? ((data.likes + data.comments) / data.views * 100).toFixed(2) : 'N/A';
+            document.getElementById('instagramResultEngagement').textContent = `${engagementRate}%`;
+            
+            // 高エンゲージメントかどうかを表示
+            document.getElementById('instagramResultHighEngagement').textContent = data.high_engagement ? '✅ はい' : '❌ いいえ';
+            document.getElementById('instagramResultHighEngagement').className = data.high_engagement ? 'engagement-high' : 'engagement-low';
+            
+            // コンテンツ情報を表示
+            document.getElementById('instagramResultCaption').textContent = data.caption || 'N/A';
+            document.getElementById('instagramResultHashtags').textContent = data.hashtags || 'N/A';
+            document.getElementById('instagramResultPostedAt').textContent = data.posted_at || 'N/A';
+            
+            // 文字起こし結果を表示（あれば）
+            const transcriptSection = document.getElementById('instagramTranscriptSection');
+            if (data.transcript) {
+                document.getElementById('instagramResultTranscript').textContent = data.transcript;
+                transcriptSection.style.display = 'block';
+            } else {
+                transcriptSection.style.display = 'none';
+            }
+            
+            // リライト結果を表示（あれば）
+            const rewrittenSection = document.getElementById('instagramRewrittenSection');
+            if (data.rewritten_script) {
+                document.getElementById('instagramResultRewritten').textContent = data.rewritten_script;
+                rewrittenSection.style.display = 'block';
+            } else {
+                rewrittenSection.style.display = 'none';
+            }
+            
+            // 結果カードまでスクロール
+            resultCard.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Instagram分析フォームのイベントリスナー
+        document.addEventListener('DOMContentLoaded', () => {
+            const instagramForm = document.getElementById('instagramAnalysisForm');
+            if (instagramForm) {
+                instagramForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const postUrl = document.getElementById('instagramPostUrl').value;
+                    const clientId = document.getElementById('instagramClientId').value;
+                    const spinner = document.getElementById('instagramAnalysisSpinner');
+                    
+                    if (!postUrl) {
+                        alert('Instagram投稿URLを入力してください');
+                        return;
+                    }
+                    
+                    // スピナーを表示
+                    spinner.style.display = 'inline-block';
+                    
+                    try {
+                        const response = await fetch('/analyze-instagram-post/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                post_url: postUrl,
+                                client_id: clientId || null
+                            }),
+                        });
+                        
+                        const result = await response.json();
+                        
+                        // スピナーを非表示
+                        spinner.style.display = 'none';
+                        
+                        if (result.success) {
+                            // 分析結果を表示
+                            displayInstagramResult(result);
+                            
+                            // 分析一覧を更新
+                            const instagramResponse = await fetch('/get-instagram-analysis/');
+                            const instagramData = await instagramResponse.json();
+                            displayInstagramAnalysis(instagramData);
+                            
+                            // フォームをリセット
+                            instagramForm.reset();
+                        } else {
+                            alert(`分析エラー: ${result.error || '不明なエラー'}`);
+                        }
+                    } catch (error) {
+                        // スピナーを非表示
+                        spinner.style.display = 'none';
+                        console.error('分析エラー:', error);
+                        alert('分析中にエラーが発生しました。詳細はコンソールを確認してください。');
+                    }
+                });
+            }
+            
+            // 更新ボタンのイベントリスナー
+            const refreshButton = document.getElementById('instagramRefreshButton');
+            if (refreshButton) {
+                refreshButton.addEventListener('click', async () => {
+                    const spinner = document.getElementById('instagramRefreshSpinner');
+                    spinner.style.display = 'inline-block';
+                    
+                    try {
+                        const response = await fetch('/get-instagram-analysis/');
+                        const data = await response.json();
+                        displayInstagramAnalysis(data);
+                    } catch (error) {
+                        console.error('更新エラー:', error);
+                    } finally {
+                        spinner.style.display = 'none';
+                    }
+                });
+            }
+            
+            // データロード
+            loadData();
+        });
+        
         // ページロード時にデータを取得
-        document.addEventListener('DOMContentLoaded', loadData);
+        // document.addEventListener('DOMContentLoaded', loadData);
     </script>
 </body>
 </html>
