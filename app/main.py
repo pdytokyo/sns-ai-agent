@@ -16,10 +16,16 @@ import base64
 import uuid
 import secrets
 import sys
+import threading
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db_enhancement import research_detailed_success_case, store_success_case, collect_copyright_free_audio, store_audio_tracks, init_db as init_enhanced_db
 from competitor_analysis import get_youtube_transcript, analyze_competitor_script, store_competitor_script
 from video_processing import process_video
+from auto_research import start_auto_research_thread, run_auto_research
+from script_generator import generate_script_proposals, store_script_proposals
+from shooting_instructions_generator import generate_shooting_instructions, store_shooting_instructions
+from subtitle_generator import generate_subtitles, store_subtitles
+from bgm_integrator import create_final_video
 
 load_dotenv()
 
@@ -55,6 +61,8 @@ async def startup_event():
         print("Trend collection scheduler started successfully.")
     except Exception as e:
         print(f"Warning: Failed to start trend collection scheduler: {str(e)}")
+        
+    init_db()
 
 # security = HTTPBasic()
 
@@ -607,8 +615,8 @@ async def get_options():
 
 @app.get("/", response_class=RedirectResponse)
 async def root():
-    """ルートエンドポイント - 静的ファイルにリダイレクト"""
-    return RedirectResponse(url="/static/index.html")
+    """ルートエンドポイント - クライアントワークフローにリダイレクト"""
+    return RedirectResponse(url="/static/client_workflow.html")
 
 @app.post("/collect_success_cases/", response_model=dict)
 async def collect_success_cases(
@@ -618,23 +626,366 @@ async def collect_success_cases(
 ):
     """指定したプラットフォームと業界の成功動画を収集し、DBに格納するエンドポイント"""
     try:
-        success_case = research_detailed_success_case(platform, industry)
+        def background_task():
+            try:
+                success_case = research_detailed_success_case(platform, industry)
+                case_id = store_success_case(platform, industry, success_case)
+                print(f"成功事例の収集が完了しました。ID: {case_id}")
+            except Exception as e:
+                print(f"成功事例の収集中にエラーが発生しました: {str(e)}")
         
-        case_id = store_success_case(platform, industry, success_case)
+        thread = threading.Thread(target=background_task)
+        thread.daemon = True
+        thread.start()
         
         return {
             "success": True,
-            "id": case_id,
-            "platform": platform,
-            "industry": industry,
-            "video_url": success_case["video_url"],
-            "buzz_point": success_case["buzz_point"],
-            "top_comments": success_case["top_comments"],
-            "trend_topics": success_case["trend_topics"],
-            "engagement_reason": success_case["engagement_reason"]
+            "message": "成功事例の収集をバックグラウンドで開始しました。"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"成功事例の収集中にエラーが発生しました: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"成功事例の収集の開始中にエラーが発生しました: {str(e)}")
+
+@app.post("/start-auto-research/", response_model=dict)
+async def start_auto_research_endpoint(
+    client_id: int = Form(...),
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """クライアント向けの自動リサーチを開始するエンドポイント"""
+    try:
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT platforms FROM selections WHERE client_id = ? ORDER BY created_at DESC LIMIT 1",
+            (client_id,)
+        )
+        selection = cursor.fetchone()
+        
+        if not selection:
+            raise HTTPException(status_code=400, detail="クライアント選択情報が見つかりません")
+        
+        platforms = selection[0].split(",")
+        
+        start_auto_research_thread(client_id, platforms)
+        
+        return {
+            "success": True,
+            "message": "自動リサーチを開始しました。バックグラウンドで処理が続きます。"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"自動リサーチの開始中にエラーが発生しました: {str(e)}")
+
+@app.get("/research-status/{client_id}", response_model=dict)
+async def get_research_status(
+    client_id: int,
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """クライアントの自動リサーチ状況を取得するエンドポイント"""
+    try:
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT research_status FROM clients WHERE id = ?",
+            (client_id,)
+        )
+        result = cursor.fetchone()
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="クライアント情報が見つかりません")
+        
+        return {
+            "success": True,
+            "status": result[0]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"リサーチ状況の取得中にエラーが発生しました: {str(e)}")
+
+@app.post("/generate-script-proposals/", response_model=dict)
+async def generate_script_proposals_endpoint(
+    client_id: int = Form(...),
+    num_proposals: int = Form(3),
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """複数の台本提案を生成するエンドポイント"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT research_status FROM clients WHERE id = ?",
+            (client_id,)
+        )
+        client = cursor.fetchone()
+        
+        if not client or client[0] != "completed":
+            cursor.execute(
+                "SELECT platforms FROM selections WHERE client_id = ? ORDER BY created_at DESC LIMIT 1",
+                (client_id,)
+            )
+            selection = cursor.fetchone()
+            
+            if not selection:
+                raise HTTPException(status_code=400, detail="クライアント選択情報が見つかりません")
+            
+            platforms = selection[0].split(",")
+            
+            start_auto_research_thread(client_id, platforms)
+            
+            return {
+                "success": True,
+                "status": "research_in_progress",
+                "message": "自動リサーチを開始しました。しばらくお待ちください。"
+            }
+        
+        proposals = generate_script_proposals(client_id, num_proposals)
+        proposal_ids = store_script_proposals(client_id, proposals)
+        
+        return {
+            "success": True,
+            "status": "completed",
+            "proposal_ids": proposal_ids,
+            "proposals": proposals
+        }
+    
+    except Exception as e: 
+        raise HTTPException(status_code=500, detail=f"台本提案の生成中にエラーが発生しました: {str(e)}")
+
+@app.get("/script-proposals/{client_id}", response_model=List[dict])
+async def get_script_proposals(
+    client_id: int,
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """クライアントの台本提案一覧を取得するエンドポイント"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, title, content, is_selected FROM script_proposals WHERE client_id = ? ORDER BY created_at DESC",
+            (client_id,)
+        )
+        proposals = [dict(row) for row in cursor.fetchall()]
+        return proposals
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"台本提案の取得中にエラーが発生しました: {str(e)}")
+
+@app.post("/select-script-proposal/{proposal_id}", response_model=dict)
+async def select_script_proposal(
+    proposal_id: int,
+    client_id: int = Form(...),
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """特定の台本提案を選択するエンドポイント"""
+    try:
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "UPDATE script_proposals SET is_selected = 0 WHERE client_id = ?",
+            (client_id,)
+        )
+        
+        cursor.execute(
+            "UPDATE script_proposals SET is_selected = 1 WHERE id = ? AND client_id = ?",
+            (proposal_id, client_id)
+        )
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="台本提案が見つかりません")
+        
+        return {
+            "success": True,
+            "proposal_id": proposal_id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"台本提案の選択中にエラーが発生しました: {str(e)}")
+
+@app.post("/generate-shooting-instructions/", response_model=dict)
+async def generate_shooting_instructions_endpoint(
+    client_id: int = Form(...),
+    script_proposal_id: int = Form(...),
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """撮影指示書を生成するエンドポイント"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM script_proposals WHERE id = ? AND client_id = ? AND is_selected = 1",
+            (script_proposal_id, client_id)
+        )
+        proposal = cursor.fetchone()
+        
+        if not proposal:
+            raise HTTPException(status_code=400, detail="選択された台本提案が見つかりません")
+        
+        instructions = generate_shooting_instructions(client_id, script_proposal_id)
+        instruction_id = store_shooting_instructions(client_id, script_proposal_id, instructions)
+        
+        return {
+            "success": True,
+            "instruction_id": instruction_id,
+            "content": instructions
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"撮影指示書の生成中にエラーが発生しました: {str(e)}")
+
+@app.get("/shooting-instructions/{client_id}", response_model=dict)
+async def get_shooting_instructions(
+    client_id: int,
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """クライアントの最新の撮影指示書を取得するエンドポイント"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT si.id, si.content, sp.title as script_title 
+            FROM shooting_instructions si
+            JOIN script_proposals sp ON si.script_proposal_id = sp.id
+            WHERE si.client_id = ?
+            ORDER BY si.created_at DESC
+            LIMIT 1
+            """,
+            (client_id,)
+        )
+        instruction = cursor.fetchone()
+        
+        if not instruction:
+            raise HTTPException(status_code=404, detail="撮影指示書が見つかりません")
+        
+        return {
+            "id": instruction[0],
+            "content": instruction[1],
+            "script_title": instruction[2]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"撮影指示書の取得中にエラーが発生しました: {str(e)}")
+
+@app.post("/generate-subtitles/", response_model=dict)
+async def generate_subtitles_endpoint(
+    processed_video_id: int = Form(...),
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """字幕を生成するエンドポイント"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM processed_videos WHERE id = ?",
+            (processed_video_id,)
+        )
+        video = cursor.fetchone()
+        
+        if not video:
+            raise HTTPException(status_code=404, detail="処理済み動画が見つかりません")
+        
+        subtitles = generate_subtitles(processed_video_id)
+        subtitle_ids = store_subtitles(processed_video_id, subtitles)
+        
+        return {
+            "success": True,
+            "subtitle_ids": subtitle_ids,
+            "subtitles": subtitles
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"字幕の生成中にエラーが発生しました: {str(e)}")
+
+@app.get("/subtitles/{processed_video_id}", response_model=List[dict])
+async def get_subtitles(
+    processed_video_id: int,
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """処理済み動画の字幕を取得するエンドポイント"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, start_time, end_time, text FROM subtitles WHERE processed_video_id = ? ORDER BY start_time",
+            (processed_video_id,)
+        )
+        subtitles = []
+        for row in cursor.fetchall():
+            subtitles.append({
+                "id": row[0],
+                "start_time": row[1],
+                "end_time": row[2],
+                "text": row[3]
+            })
+        return subtitles
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"字幕の取得中にエラーが発生しました: {str(e)}")
+
+@app.post("/bgm-integration/", response_model=dict)
+async def bgm_integration_endpoint(
+    processed_video_id: int = Form(...),
+    bgm_id: int = Form(...),
+    bgm_volume: float = Form(0.5),
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """BGMを挿入した最終動画を作成するエンドポイント"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM processed_videos WHERE id = ?",
+            (processed_video_id,)
+        )
+        video = cursor.fetchone()
+        
+        if not video:
+            raise HTTPException(status_code=404, detail="処理済み動画が見つかりません")
+        
+        cursor.execute(
+            "SELECT id FROM copyright_free_audio WHERE id = ?",
+            (bgm_id,)
+        )
+        bgm = cursor.fetchone()
+        
+        if not bgm:
+            raise HTTPException(status_code=404, detail="BGMが見つかりません")
+        
+        final_video_id = create_final_video(processed_video_id, bgm_id, bgm_volume)
+        
+        cursor.execute(
+            "SELECT output_path FROM final_videos WHERE id = ?",
+            (final_video_id,)
+        )
+        final_video = cursor.fetchone()
+        
+        output_rel_path = final_video[0].replace("app/", "/")
+        
+        return {
+            "success": True,
+            "final_video_id": final_video_id,
+            "output_path": output_rel_path,
+            "preview_url": f"/static/preview.html?video={output_rel_path}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"BGM挿入中にエラーが発生しました: {str(e)}")
+
+@app.get("/final-videos/{client_id}", response_model=List[dict])
+async def get_final_videos(
+    client_id: int,
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """クライアントの最終動画一覧を取得するエンドポイント"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT fv.id, fv.output_path, fv.bgm_volume, cfa.title as bgm_title
+            FROM final_videos fv
+            JOIN copyright_free_audio cfa ON fv.bgm_id = cfa.id
+            WHERE fv.client_id = ?
+            ORDER BY fv.created_at DESC
+            """,
+            (client_id,)
+        )
+        videos = []
+        for row in cursor.fetchall():
+            output_rel_path = row["output_path"].replace("app/", "/")
+            videos.append({
+                "id": row["id"],
+                "output_path": output_rel_path,
+                "preview_url": f"/static/preview.html?video={output_rel_path}",
+                "bgm_title": row["bgm_title"],
+                "bgm_volume": row["bgm_volume"]
+            })
+        return videos
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"最終動画の取得中にエラーが発生しました: {str(e)}")
 
 @app.post("/analyze_competitor_video/", response_model=dict)
 async def analyze_competitor_video(
