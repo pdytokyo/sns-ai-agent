@@ -2,7 +2,55 @@
  * client_workflow_fixed.js - クライアントワークフローのJavaScript機能
  */
 
+let clientId = null;
+let currentStep = 1;
+let selectedScriptId = null;
+let processedVideoId = null;
+let subtitleIds = [];
+let selectedBgmId = null;
+
+function loadSession() {
+    try {
+        const sessionData = localStorage.getItem('clientWorkflowSession');
+        if (sessionData) {
+            const data = JSON.parse(sessionData);
+            clientId = data.clientId || null;
+            currentStep = data.currentStep || 1;
+            selectedScriptId = data.selectedScriptId || null;
+            processedVideoId = data.processedVideoId || null;
+            subtitleIds = data.subtitleIds || [];
+            selectedBgmId = data.selectedBgmId || null;
+            return true;
+        }
+    } catch (error) {
+        console.error('セッションの読み込みに失敗しました:', error);
+    }
+    return false;
+}
+
+function saveSession() {
+    try {
+        const sessionData = {
+            clientId,
+            currentStep,
+            selectedScriptId,
+            processedVideoId,
+            subtitleIds,
+            selectedBgmId
+        };
+        localStorage.setItem('clientWorkflowSession', JSON.stringify(sessionData));
+    } catch (error) {
+        console.error('セッションの保存に失敗しました:', error);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    if (loadSession() && currentStep > 1) {
+        goToStep(currentStep);
+    } else {
+        goToStep(1);
+    }
+    
     setupStepNavigation();
     
     setupFormHandlers();
