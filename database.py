@@ -202,5 +202,19 @@ CREATE TABLE IF NOT EXISTS social_accounts (
 )
 ''')
 
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS edit_commands (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER,
+    script_id INTEGER,
+    command_json TEXT,
+    video_path TEXT,
+    result_path TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES clients (id),
+    FOREIGN KEY (script_id) REFERENCES scripts (id)
+)
+''')
+
 conn.commit()
 conn.close()
