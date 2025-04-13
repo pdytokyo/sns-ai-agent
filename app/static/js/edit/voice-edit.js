@@ -1,0 +1,360 @@
+
+let mediaRecorder;
+let audioChunks = [];
+let recordingTimer;
+let recordingSeconds = 0;
+let selectedVideoId = null;
+let currentEditCommands = null;
+let clientId = localStorage.getItem('clientId') || 'test-client';
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeUI();
+    loadVideos();
+    
+    document.getElementById('startRecording').addEventListener('click', startRecording);
+    document.getElementById('stopRecording').addEventListener('click', stopRecording);
+    document.getElementById('submitText').addEventListener('click', submitText);
+    document.getElementById('applyEdits').addEventListener('click', applyEdits);
+    document.getElementById('rejectEdits').addEventListener('click', resetEditProposal);
+    document.getElementById('videoUpload').addEventListener('change', handleVideoUpload);
+    document.getElementById('videoSelect').addEventListener('change', handleVideoSelect);
+});
+
+function initializeUI() {
+    document.getElementById('stopRecording').disabled = true;
+    document.getElementById('editProposalContainer').classList.add('d-none');
+    document.getElementById('resultContainer').classList.add('d-none');
+    
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        console.log('マイクアクセスをサポートしています');
+    } else {
+        console.error('このブラウザはマイクアクセスをサポートしていません');
+        document.getElementById('startRecording').disabled = true;
+        document.getElementById('startRecording').textContent = 'マイク非対応';
+    }
+}
+
+function loadVideos() {
+    fetch('/api/get-processed-videos')
+        .then(response => response.json())
+        .then(videos => {
+            const videoSelect = document.getElementById('videoSelect');
+            videoSelect.innerHTML = '<option value="">動画を選択してください</option>';
+            
+            videos.forEach(video => {
+                const option = document.createElement('option');
+                option.value = video.id;
+                option.textContent = video.filename || `動画 #${video.id}`;
+                videoSelect.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('動画リストの取得に失敗しました:', error);
+        });
+}
+
+function handleVideoSelect(event) {
+    const videoId = event.target.value;
+    if (!videoId) return;
+    
+    selectedVideoId = videoId;
+    const videoPreview = document.getElementById('videoPreview');
+    const videoPreviewContainer = document.getElementById('videoPreviewContainer');
+    
+    fetch(`/api/get-video-info?video_id=${videoId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.video_url) {
+                videoPreview.src = data.video_url;
+                videoPreviewContainer.classList.remove('d-none');
+                videoPreview.load();
+            }
+        })
+        .catch(error => {
+            console.error('動画情報の取得に失敗しました:', error);
+        });
+}
+
+function handleVideoUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('client_id', clientId);
+    
+    fetch('/api/upload-video', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.video_id) {
+            selectedVideoId = data.video_id;
+            
+            const videoPreview = document.getElementById('videoPreview');
+            const videoPreviewContainer = document.getElementById('videoPreviewContainer');
+            
+            videoPreview.src = data.video_url;
+            videoPreviewContainer.classList.remove('d-none');
+            
+            loadVideos();
+            
+            const videoSelect = document.getElementById('videoSelect');
+            videoSelect.value = selectedVideoId;
+        }
+    })
+    .catch(error => {
+        console.error('動画アップロードに失敗しました:', error);
+        alert('動画アップロードに失敗しました。');
+    });
+}
+
+function startRecording() {
+    if (!selectedVideoId) {
+        alert('先に動画を選択してください');
+        return;
+    }
+    
+    audioChunks = [];
+    recordingSeconds = 0;
+    
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            mediaRecorder = new MediaRecorder(stream);
+            
+            mediaRecorder.ondataavailable = event => {
+                audioChunks.push(event.data);
+            };
+            
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                sendAudioForTranscription(audioBlob);
+            };
+            
+            mediaRecorder.start();
+            
+            document.getElementById('startRecording').disabled = true;
+            document.getElementById('stopRecording').disabled = false;
+            document.getElementById('recordingStatus').classList.remove('d-none');
+            document.getElementById('recordingTime').classList.remove('d-none');
+            document.getElementById('startRecording').classList.remove('btn-primary');
+            document.getElementById('startRecording').classList.add('btn-secondary');
+            document.getElementById('stopRecording').classList.add('recording-active');
+            
+            startRecordingTimer();
+        })
+        .catch(error => {
+            console.error('マイクアクセスに失敗しました:', error);
+            alert('マイクへのアクセスに失敗しました。マイクの使用を許可してください。');
+        });
+}
+
+function startRecordingTimer() {
+    recordingTimer = setInterval(() => {
+        recordingSeconds++;
+        const minutes = Math.floor(recordingSeconds / 60);
+        const seconds = recordingSeconds % 60;
+        document.getElementById('recordingTime').textContent = 
+            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }, 1000);
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    }
+    
+    clearInterval(recordingTimer);
+    
+    document.getElementById('startRecording').disabled = false;
+    document.getElementById('stopRecording').disabled = true;
+    document.getElementById('recordingStatus').classList.add('d-none');
+    document.getElementById('startRecording').classList.remove('btn-secondary');
+    document.getElementById('startRecording').classList.add('btn-primary');
+    document.getElementById('stopRecording').classList.remove('recording-active');
+}
+
+function sendAudioForTranscription(audioBlob) {
+    const formData = new FormData();
+    formData.append('audio', audioBlob);
+    formData.append('client_id', clientId);
+    
+    fetch('/api/transcribe-audio', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.text) {
+            const transcriptionResult = document.getElementById('transcriptionResult');
+            transcriptionResult.textContent = data.text;
+            transcriptionResult.classList.remove('d-none');
+            
+            convertToEditCommands(data.text);
+        }
+    })
+    .catch(error => {
+        console.error('文字起こしに失敗しました:', error);
+        alert('文字起こしに失敗しました。');
+    });
+}
+
+function submitText() {
+    const text = document.getElementById('textInput').value.trim();
+    if (!text) {
+        alert('テキストを入力してください');
+        return;
+    }
+    
+    if (!selectedVideoId) {
+        alert('先に動画を選択してください');
+        return;
+    }
+    
+    const transcriptionResult = document.getElementById('transcriptionResult');
+    transcriptionResult.textContent = text;
+    transcriptionResult.classList.remove('d-none');
+    
+    convertToEditCommands(text);
+}
+
+function convertToEditCommands(text) {
+    fetch('/api/text-to-edit-commands', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: `text=${encodeURIComponent(text)}&video_id=${selectedVideoId}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.commands) {
+            displayEditProposal(data.commands);
+            currentEditCommands = data.commands;
+        } else {
+            throw new Error('編集コマンドの生成に失敗しました');
+        }
+    })
+    .catch(error => {
+        console.error('編集コマンドの生成に失敗しました:', error);
+        alert('編集コマンドの生成に失敗しました。');
+    });
+}
+
+function displayEditProposal(commands) {
+    const editProposal = document.getElementById('editProposal');
+    const editProposalContainer = document.getElementById('editProposalContainer');
+    const noProposalMessage = document.getElementById('noProposalMessage');
+    
+    editProposal.innerHTML = '';
+    
+    if (commands.edits && commands.edits.length > 0) {
+        commands.edits.forEach(edit => {
+            const editElement = document.createElement('div');
+            editElement.classList.add('edit-command');
+            
+            switch (edit.type) {
+                case 'cut':
+                    editElement.classList.add('edit-cut');
+                    editElement.innerHTML = `<strong>カット:</strong> ${edit.start}秒から${edit.end}秒までを削除`;
+                    break;
+                case 'subtitle':
+                    editElement.classList.add('edit-subtitle');
+                    editElement.innerHTML = `<strong>テロップ:</strong> "${edit.text}" を${edit.start}秒から${edit.end}秒まで表示`;
+                    break;
+                case 'bgm_replace':
+                    editElement.classList.add('edit-bgm');
+                    editElement.innerHTML = `<strong>BGM変更:</strong> "${edit.mood}" ムードの音楽に置き換え`;
+                    break;
+                case 'speed':
+                    editElement.classList.add('edit-speed');
+                    editElement.innerHTML = `<strong>速度変更:</strong> ${edit.start}秒から${edit.end}秒までを${edit.rate}倍速に`;
+                    break;
+                case 'trim':
+                    editElement.classList.add('edit-trim');
+                    editElement.innerHTML = `<strong>トリム:</strong> ${edit.start}秒から${edit.end}秒までを残して他をカット`;
+                    break;
+                default:
+                    editElement.innerHTML = `<strong>${edit.type}:</strong> ${JSON.stringify(edit)}`;
+            }
+            
+            editProposal.appendChild(editElement);
+        });
+        
+        editProposalContainer.classList.remove('d-none');
+        noProposalMessage.classList.add('d-none');
+    } else {
+        editProposal.innerHTML = '<div class="alert alert-warning">有効な編集コマンドが生成されませんでした。別の指示を試してください。</div>';
+        editProposalContainer.classList.remove('d-none');
+        noProposalMessage.classList.add('d-none');
+    }
+}
+
+function applyEdits() {
+    if (!currentEditCommands || !selectedVideoId) {
+        alert('編集コマンドまたは動画が選択されていません');
+        return;
+    }
+    
+    const processingMessage = document.getElementById('processingMessage');
+    const resultContainer = document.getElementById('resultContainer');
+    const noResultMessage = document.getElementById('noResultMessage');
+    
+    processingMessage.classList.remove('d-none');
+    resultContainer.classList.add('d-none');
+    noResultMessage.classList.add('d-none');
+    
+    fetch('/api/process-edit', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            video_id: selectedVideoId,
+            client_id: clientId,
+            commands: currentEditCommands
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        processingMessage.classList.add('d-none');
+        
+        if (data.result_url) {
+            const resultVideo = document.getElementById('resultVideo');
+            const downloadLink = document.getElementById('downloadLink');
+            
+            resultVideo.src = data.result_url;
+            downloadLink.href = data.result_url;
+            downloadLink.download = data.filename || 'edited_video.mp4';
+            
+            resultContainer.classList.remove('d-none');
+            noResultMessage.classList.add('d-none');
+            
+            resultVideo.load();
+        } else {
+            throw new Error('動画処理に失敗しました');
+        }
+    })
+    .catch(error => {
+        console.error('動画処理に失敗しました:', error);
+        alert('動画処理に失敗しました。');
+        processingMessage.classList.add('d-none');
+        noResultMessage.classList.remove('d-none');
+    });
+}
+
+function resetEditProposal() {
+    const editProposalContainer = document.getElementById('editProposalContainer');
+    const noProposalMessage = document.getElementById('noProposalMessage');
+    const transcriptionResult = document.getElementById('transcriptionResult');
+    
+    editProposalContainer.classList.add('d-none');
+    noProposalMessage.classList.remove('d-none');
+    transcriptionResult.classList.add('d-none');
+    transcriptionResult.textContent = '';
+    document.getElementById('textInput').value = '';
+    
+    currentEditCommands = null;
+}
