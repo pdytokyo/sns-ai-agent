@@ -173,6 +173,8 @@ function setupFormHandlers() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    clientId = data.clientId; // グローバル変数に保存
+                    saveSession(); // セッションに保存
                     goToStep(2);
                     
                     startAutoResearch(data.clientId);
@@ -218,9 +220,11 @@ function startAutoResearch(clientId) {
 }
 
 function getScriptProposals(clientId) {
+    console.log('Fetching script proposals for clientId:', clientId);
     fetch(`/api/get-script-proposals?clientId=${clientId}`)
     .then(response => response.json())
     .then(data => {
+        console.log('Script proposals response:', data);
         if (data.success) {
             displayScriptProposals(data.proposals);
             
@@ -230,7 +234,7 @@ function getScriptProposals(clientId) {
         }
     })
     .catch(error => {
-        console.error('Error:', error);
+        console.error('Error fetching script proposals:', error);
         alert('台本提案の取得中にエラーが発生しました。');
     });
 }
