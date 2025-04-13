@@ -61,7 +61,7 @@ function handleVideoSelect(event) {
     const videoPreview = document.getElementById('videoPreview');
     const videoPreviewContainer = document.getElementById('videoPreviewContainer');
     
-    fetch(`/api/get-video-info?video_id=${videoId}`)
+    fetch(`/video_info/${videoId}`)
         .then(response => response.json())
         .then(data => {
             if (data.video_url) {
@@ -92,7 +92,7 @@ function handleVideoUpload(event) {
     
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('client_id', clientId);
+    formData.append('client_id', parseInt(clientId) || 1); // Convert to integer or default to 1
     formData.append('aspect_ratio', '16:9');
     formData.append('margin_seconds', 0.5);
     
@@ -252,7 +252,7 @@ function convertToEditCommands(text) {
     let videoMetadata = null;
     
     if (selectedVideoId) {
-        fetch(`/api/get-video-info?video_id=${selectedVideoId}`)
+        fetch(`/video_info/${selectedVideoId}`)
             .then(response => response.json())
             .then(data => {
                 videoMetadata = data;
@@ -359,17 +359,22 @@ function applyEdits() {
     resultContainer.classList.add('d-none');
     noResultMessage.classList.add('d-none');
     
-    fetch('/api/process-edit', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            video_id: selectedVideoId,
-            client_id: clientId,
-            commands: currentEditCommands
+    fetch(`/video_info/${selectedVideoId}`)
+        .then(response => response.json())
+        .then(videoInfo => {
+            return fetch('/api/process-edit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    video_path: videoInfo.video_path || videoInfo.path || `uploaded_videos/upload_${selectedVideoId}.mp4`,
+                    client_id: parseInt(clientId) || 1,
+                    command_json: JSON.stringify(currentEditCommands),
+                    script_id: null
+                })
+            });
         })
-    })
     .then(response => response.json())
     .then(data => {
         processingMessage.classList.add('d-none');
