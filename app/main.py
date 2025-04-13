@@ -47,6 +47,8 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static/uploaded_videos", StaticFiles(directory="uploaded_videos"), name="uploaded_videos")
+app.mount("/static/output", StaticFiles(directory="output"), name="output")
 
 @app.on_event("startup")
 async def startup_event():
@@ -1271,7 +1273,7 @@ async def upload_video(
     client_id: int = Form(...),
     aspect_ratio: str = Form("16:9"),
     margin_seconds: float = Form(0.5),
-    conn: sqlite3.Connection = Depends(get_db)
+    conn: sqlite3.Connection = Depends(get_data_db)
 ):
     """動画をアップロードし、アスペクト比とマージン設定を保存するエンドポイント"""
     try:
@@ -1286,21 +1288,22 @@ async def upload_video(
         
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO uploads (filename, original_filename, aspect_ratio, margin_seconds, client_id) VALUES (?, ?, ?, ?, ?)",
-            (unique_filename, file.filename, aspect_ratio, margin_seconds, client_id)
+            "INSERT INTO uploads (filename, original_path, aspect_ratio, margin_seconds, client_id) VALUES (?, ?, ?, ?, ?)",
+            (unique_filename, file_path, aspect_ratio, margin_seconds, client_id)
         )
         conn.commit()
         upload_id = cursor.lastrowid
         
         return {
             "success": True,
-            "id": upload_id,
+            "video_id": upload_id,
             "filename": unique_filename,
             "original_filename": file.filename,
             "aspect_ratio": aspect_ratio,
             "margin_seconds": margin_seconds,
             "client_id": client_id,
-            "file_path": file_path
+            "video_path": file_path,
+            "video_url": f"/static/uploaded_videos/{unique_filename}"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"動画アップロード中にエラーが発生しました: {str(e)}")
@@ -1597,6 +1600,17 @@ async def api_upload_video(
     """動画をアップロードするAPIエンドポイント（クライアントワークフロー用）"""
     return await upload_video(file, client_id, aspect_ratio, margin_seconds, conn)
 
+@app.post("/upload_video/", response_model=dict)
+async def upload_video_endpoint(
+    file: UploadFile = File(...),
+    client_id: int = Form(...),
+    aspect_ratio: str = Form("16:9"),
+    margin_seconds: float = Form(0.5),
+    conn: sqlite3.Connection = Depends(get_data_db)
+):
+    """動画をアップロードするAPIエンドポイント（音声編集UI用）"""
+    return await upload_video(file, client_id, aspect_ratio, margin_seconds, conn)
+
 class TranscribeRequest(BaseModel):
     audio_base64: str
 
@@ -1670,19 +1684,24 @@ async def natural_edit(request: EditCommandRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"編集コマンドの生成に失敗しました: {str(e)}")
 
+class TextToEditCommandRequest(BaseModel):
+    text: str
+    video_id: Optional[str] = None
+    video_metadata: Optional[dict] = None
+
 @app.post("/api/text-to-edit-commands", response_model=dict)
-async def text_to_edit_commands(text: str = Form(...), video_id: Optional[str] = Form(None)):
+async def text_to_edit_commands(request: TextToEditCommandRequest = Body(...)):
     """テキストを編集コマンドに変換するエンドポイント（WebUI用）"""
     try:
         sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from voice_edit_agent.natural_edit_agent import NaturalEditAgent
         
-        video_metadata = None
-        if video_id:
+        video_metadata = request.video_metadata
+        if request.video_id and not video_metadata:
             video_metadata = {"duration": 60.0, "resolution": "1920x1080"}
         
         agent = NaturalEditAgent()
-        edit_commands = agent.convert_to_edit_commands(text, video_metadata)
+        edit_commands = agent.convert_to_edit_commands(request.text, video_metadata)
         validated_commands = agent.validate_commands(edit_commands, video_metadata.get("duration") if video_metadata else None)
         
         return {"commands": validated_commands}
@@ -1783,7 +1802,7 @@ async def edit_ui():
 @app.get("/static/edit_ui/index.html")
 async def edit_ui_static():
     """音声編集UIの静的ファイルを表示するエンドポイント"""
-    return FileResponse("app/edit_ui/index.html")
+    return FileResponse("app/static/edit_ui/index.html")
 
 @app.get("/edit_ui/index.html")
 async def edit_ui_redirect():
