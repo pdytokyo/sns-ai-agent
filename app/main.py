@@ -141,6 +141,15 @@ def get_db():
         yield conn
     finally:
         conn.close()
+        
+def get_data_db():
+    db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data.db"))
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 def init_db():
     db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app.db"))
@@ -1505,7 +1514,7 @@ async def get_instagram_analysis(post_id: Optional[int] = None):
 @app.get("/api/get-script-proposals", response_model=dict)
 async def api_get_script_proposals(
     clientId: int,
-    conn: sqlite3.Connection = Depends(get_db)
+    conn: sqlite3.Connection = Depends(get_data_db)
 ):
     """クライアントの台本提案一覧を取得するAPIエンドポイント（クライアントワークフロー用）"""
     try:
@@ -1528,7 +1537,7 @@ async def api_get_script_proposals(
 @app.get("/api/generate-shooting-instructions", response_model=dict)
 async def api_generate_shooting_instructions(
     proposalId: int,
-    conn: sqlite3.Connection = Depends(get_db)
+    conn: sqlite3.Connection = Depends(get_data_db)
 ):
     """撮影指示書を生成するAPIエンドポイント（クライアントワークフロー用）"""
     try:
@@ -1556,7 +1565,7 @@ async def api_upload_video(
     client_id: int = Form(...),
     aspect_ratio: str = Form("16:9"),
     margin_seconds: float = Form(0.5),
-    conn: sqlite3.Connection = Depends(get_db)
+    conn: sqlite3.Connection = Depends(get_data_db)
 ):
     """動画をアップロードするAPIエンドポイント（クライアントワークフロー用）"""
     return await upload_video(file, client_id, aspect_ratio, margin_seconds, conn)
