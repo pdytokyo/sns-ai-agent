@@ -1597,6 +1597,17 @@ async def api_upload_video(
     """動画をアップロードするAPIエンドポイント（クライアントワークフロー用）"""
     return await upload_video(file, client_id, aspect_ratio, margin_seconds, conn)
 
+@app.post("/upload_video/", response_model=dict)
+async def upload_video_endpoint(
+    file: UploadFile = File(...),
+    client_id: int = Form(...),
+    aspect_ratio: str = Form("16:9"),
+    margin_seconds: float = Form(0.5),
+    conn: sqlite3.Connection = Depends(get_data_db)
+):
+    """動画をアップロードするAPIエンドポイント（音声編集UI用）"""
+    return await upload_video(file, client_id, aspect_ratio, margin_seconds, conn)
+
 class TranscribeRequest(BaseModel):
     audio_base64: str
 
@@ -1670,19 +1681,24 @@ async def natural_edit(request: EditCommandRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"編集コマンドの生成に失敗しました: {str(e)}")
 
+class TextToEditCommandRequest(BaseModel):
+    text: str
+    video_id: Optional[str] = None
+    video_metadata: Optional[dict] = None
+
 @app.post("/api/text-to-edit-commands", response_model=dict)
-async def text_to_edit_commands(text: str = Form(...), video_id: Optional[str] = Form(None)):
+async def text_to_edit_commands(request: TextToEditCommandRequest = Body(...)):
     """テキストを編集コマンドに変換するエンドポイント（WebUI用）"""
     try:
         sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from voice_edit_agent.natural_edit_agent import NaturalEditAgent
         
-        video_metadata = None
-        if video_id:
+        video_metadata = request.video_metadata
+        if request.video_id and not video_metadata:
             video_metadata = {"duration": 60.0, "resolution": "1920x1080"}
         
         agent = NaturalEditAgent()
-        edit_commands = agent.convert_to_edit_commands(text, video_metadata)
+        edit_commands = agent.convert_to_edit_commands(request.text, video_metadata)
         validated_commands = agent.validate_commands(edit_commands, video_metadata.get("duration") if video_metadata else None)
         
         return {"commands": validated_commands}
