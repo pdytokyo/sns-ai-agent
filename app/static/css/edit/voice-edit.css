@@ -1,0 +1,71 @@
+/* 音声編集アシスタント用スタイル */
+
+.recording-active {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+    }
+}
+
+#recordingTime {
+    font-family: monospace;
+    font-weight: bold;
+}
+
+#transcriptionResult {
+    min-height: 60px;
+    white-space: pre-wrap;
+}
+
+#editProposal {
+    max-height: 300px;
+    overflow-y: auto;
+    font-family: monospace;
+    white-space: pre-wrap;
+}
+
+.edit-command {
+    margin-bottom: 8px;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.edit-cut {
+    background-color: #ffecec;
+    border-left: 3px solid #dc3545;
+}
+
+.edit-subtitle {
+    background-color: #e7f5ff;
+    border-left: 3px solid #0d6efd;
+}
+
+.edit-bgm {
+    background-color: #fff3cd;
+    border-left: 3px solid #ffc107;
+}
+
+.edit-speed {
+    background-color: #d1e7dd;
+    border-left: 3px solid #198754;
+}
+
+.edit-trim {
+    background-color: #f8f9fa;
+    border-left: 3px solid #6c757d;
+}
+
+video {
+    max-height: 400px;
+    width: 100%;
+    background-color: #000;
+}
