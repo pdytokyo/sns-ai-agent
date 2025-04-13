@@ -158,12 +158,9 @@ function setupFormHandlers() {
             const clientData = {
                 name: document.getElementById('clientName').value,
                 email: document.getElementById('clientEmail').value,
-                purposes: Array.from(document.querySelectorAll('.purpose:checked')).map(el => el.value),
-                targetAttributes: Array.from(document.querySelectorAll('.target-attr:checked')).map(el => el.value),
-                targetInterests: document.getElementById('targetInterests').value,
-                platforms: Array.from(document.querySelectorAll('.platform:checked')).map(el => el.value),
-                companyDescription: document.getElementById('companyDescription').value,
-                youtubeUrls: document.getElementById('youtubeUrls').value
+                sns_platform: Array.from(document.querySelectorAll('.platform:checked')).map(el => el.value),
+                description: document.getElementById('companyDescription').value,
+                youtube_urls: document.getElementById('youtubeUrls').value.split('\n').filter(url => url.trim() !== '')
             };
             
             fetch('/api/save-client-info', {

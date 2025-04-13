@@ -17,6 +17,7 @@ import uuid
 import secrets
 import sys
 import threading
+from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db_enhancement import research_detailed_success_case, store_success_case, collect_copyright_free_audio, store_audio_tracks, init_db as init_enhanced_db
 from competitor_analysis import get_youtube_transcript, analyze_competitor_script, store_competitor_script
@@ -45,7 +46,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.on_event("startup")
 async def startup_event():
@@ -202,8 +203,51 @@ def init_db():
     )
     ''')
     
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS client_info (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT,
+        sns_platform TEXT,
+        description TEXT,
+        youtube_urls TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
     conn.commit()
     conn.close()
+    
+    data_db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data.db"))
+    if os.path.exists(data_db_path):
+        conn = sqlite3.connect(data_db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS client_info (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT,
+            sns_platform TEXT,
+            description TEXT,
+            youtube_urls TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        conn.commit()
+        
+        cursor.execute("PRAGMA table_info(competitor_analysis)")
+        columns = cursor.fetchall()
+        column_names = [column[1] for column in columns]
+        
+        if "analyzed_at" not in column_names:
+            print("Adding analyzed_at column to competitor_analysis table")
+            cursor.execute('''
+            ALTER TABLE competitor_analysis ADD COLUMN analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ''')
+            conn.commit()
+        
+        conn.close()
 
 init_db()
 
@@ -227,6 +271,48 @@ class CompetitorVideoAnalyze(BaseModel):
     platform: str
     industry: str
     video_url: str
+
+class ClientInfoCreate(BaseModel):
+    name: str
+    email: Optional[str] = None
+    sns_platform: List[str]
+    description: str
+    youtube_urls: List[str]
+    created_at: Optional[datetime] = None
+    
+@app.post("/api/save-client-info", response_model=dict)
+async def save_client_info(client_info: ClientInfoCreate):
+    """クライアント情報を保存するAPI"""
+    try:
+        data_db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data.db"))
+        conn = sqlite3.connect(data_db_path)
+        cursor = conn.cursor()
+        
+        sns_platform_str = ",".join(client_info.sns_platform)
+        youtube_urls_str = "\n".join(client_info.youtube_urls)
+        
+        cursor.execute(
+            """
+            INSERT INTO client_info 
+            (name, email, sns_platform, description, youtube_urls)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                client_info.name,
+                client_info.email,
+                sns_platform_str,
+                client_info.description,
+                youtube_urls_str
+            )
+        )
+        
+        conn.commit()
+        client_id = cursor.lastrowid
+        conn.close()
+        
+        return {"success": True, "clientId": client_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"クライアント情報の保存に失敗しました: {str(e)}")
 
 @app.post("/clients/", response_model=dict)
 async def create_client(client: ClientCreate, conn: sqlite3.Connection = Depends(get_db)):
