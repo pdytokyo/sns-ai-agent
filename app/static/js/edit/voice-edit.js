@@ -61,39 +61,95 @@ function handleVideoSelect(event) {
     const videoPreview = document.getElementById('videoPreview');
     const videoPreviewContainer = document.getElementById('videoPreviewContainer');
     
-    fetch(`/api/get-video-info?video_id=${videoId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.video_url) {
-                videoPreview.src = data.video_url;
-                videoPreviewContainer.classList.remove('d-none');
-                videoPreview.load();
-            }
-        })
-        .catch(error => {
-            console.error('動画情報の取得に失敗しました:', error);
-        });
+    let videoPath = '';
+    if (videoId.startsWith('upload_')) {
+        const filename = videoId.replace('upload_', '');
+        videoPath = `/static/uploaded_videos/${filename}`;
+    } else if (videoId.startsWith('output_')) {
+        const filename = videoId.replace('output_', '');
+        videoPath = `/static/output/${filename}`;
+    } else if (videoId.startsWith('history_')) {
+        fetch(`/api/edit-commands?id=${videoId.replace('history_', '')}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.length > 0 && data[0].result_path) {
+                    const filename = data[0].result_path.split('/').pop();
+                    videoPreview.src = `/static/output/${filename}`;
+                    videoPreviewContainer.classList.remove('d-none');
+                    videoPreview.load();
+                }
+            })
+            .catch(error => {
+                console.error('編集履歴の取得に失敗しました:', error);
+            });
+        return;
+    } else {
+        fetch(`/video_info/${videoId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.video_url) {
+                    videoPreview.src = data.video_url;
+                    videoPreviewContainer.classList.remove('d-none');
+                    videoPreview.load();
+                }
+            })
+            .catch(error => {
+                console.error('動画情報の取得に失敗しました:', error);
+            });
+        return;
+    }
+    
+    videoPreview.src = videoPath;
+    videoPreviewContainer.classList.remove('d-none');
+    videoPreview.load();
 }
 
 function handleVideoUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
     
+    if (!file.name.toLowerCase().endsWith('.mp4')) {
+        alert('mp4形式の動画ファイルのみアップロード可能です');
+        return;
+    }
+    
+    const maxSize = 500 * 1024 * 1024; // 500MB
+    if (file.size > maxSize) {
+        alert('ファイルサイズは500MB以下にしてください');
+        return;
+    }
+    
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('client_id', clientId);
+    formData.append('client_id', parseInt(clientId) || 1); // Convert to integer or default to 1
+    formData.append('aspect_ratio', '16:9');
+    formData.append('margin_seconds', 0.5);
     
-    fetch('/api/upload-video', {
+    const uploadStatusEl = document.createElement('div');
+    uploadStatusEl.className = 'alert alert-info mt-2';
+    uploadStatusEl.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div> アップロード中...';
+    document.getElementById('videoPreviewContainer').before(uploadStatusEl);
+    
+    fetch('/upload_video/', {
         method: 'POST',
         body: formData
     })
     .then(response => response.json())
     .then(data => {
+        uploadStatusEl.remove();
+        
         if (data.video_id) {
             selectedVideoId = data.video_id;
             
             const videoPreview = document.getElementById('videoPreview');
             const videoPreviewContainer = document.getElementById('videoPreviewContainer');
+            
+            const successEl = document.createElement('div');
+            successEl.className = 'alert alert-success mt-2 mb-2';
+            successEl.innerHTML = `<strong>アップロード成功:</strong> ${file.name} (ID: ${data.video_id})`;
+            videoPreviewContainer.before(successEl);
+            
+            setTimeout(() => successEl.remove(), 3000);
             
             videoPreview.src = data.video_url;
             videoPreviewContainer.classList.remove('d-none');
@@ -105,6 +161,7 @@ function handleVideoUpload(event) {
         }
     })
     .catch(error => {
+        uploadStatusEl.remove();
         console.error('動画アップロードに失敗しました:', error);
         alert('動画アップロードに失敗しました。');
     });
@@ -221,12 +278,49 @@ function submitText() {
 }
 
 function convertToEditCommands(text) {
+    let videoMetadata = null;
+    
+    if (selectedVideoId) {
+        if (selectedVideoId.startsWith('upload_') || selectedVideoId.startsWith('output_') || selectedVideoId.startsWith('history_')) {
+            const videoPath = document.getElementById('videoPreview').src;
+            videoMetadata = {
+                video_path: videoPath,
+                original_duration: 0, // 実際の値は不明なので0をデフォルトとする
+                processed_duration: 0,
+                reduction_percentage: 0,
+                aspect_ratio: '16:9'
+            };
+            sendEditRequest(text, videoMetadata);
+        } else {
+            fetch(`/video_info/${selectedVideoId}`)
+                .then(response => response.json())
+                .then(data => {
+                    videoMetadata = data;
+                    sendEditRequest(text, videoMetadata);
+                })
+                .catch(error => {
+                    console.error('動画情報の取得に失敗しました:', error);
+                    sendEditRequest(text, null);
+                });
+        }
+    } else {
+        sendEditRequest(text, null);
+    }
+}
+
+function sendEditRequest(text, videoMetadata) {
+    const requestData = {
+        text: text,
+        video_id: selectedVideoId,
+        video_metadata: videoMetadata
+    };
+    
     fetch('/api/text-to-edit-commands', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
+            'Content-Type': 'application/json'
         },
-        body: `text=${encodeURIComponent(text)}&video_id=${selectedVideoId}`
+        body: JSON.stringify(requestData)
     })
     .then(response => response.json())
     .then(data => {
@@ -306,27 +400,79 @@ function applyEdits() {
     resultContainer.classList.add('d-none');
     noResultMessage.classList.add('d-none');
     
-    fetch('/api/process-edit', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            video_id: selectedVideoId,
-            client_id: clientId,
-            commands: currentEditCommands
+    let videoPath = '';
+    let videoInfoPromise;
+    
+    if (selectedVideoId.startsWith('upload_')) {
+        const filename = selectedVideoId.replace('upload_', '');
+        videoPath = `/static/uploaded_videos/${filename}`;
+        videoInfoPromise = Promise.resolve({ video_path: videoPath });
+    } else if (selectedVideoId.startsWith('output_')) {
+        const filename = selectedVideoId.replace('output_', '');
+        videoPath = `/static/output/${filename}`;
+        videoInfoPromise = Promise.resolve({ video_path: videoPath });
+    } else if (selectedVideoId.startsWith('history_')) {
+        videoInfoPromise = fetch(`/api/edit-commands?id=${selectedVideoId.replace('history_', '')}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.length > 0 && data[0].result_path) {
+                    return { video_path: data[0].result_path };
+                } else {
+                    throw new Error("編集履歴から動画パスが見つかりません");
+                }
+            });
+    } else {
+        videoInfoPromise = fetch(`/video_info/${selectedVideoId}`)
+            .then(response => response.json());
+    }
+    
+    videoInfoPromise
+        .then(videoInfo => {
+            console.log("currentEditCommands type:", typeof currentEditCommands);
+            console.log("currentEditCommands value:", currentEditCommands);
+            
+            let commandJson;
+            if (typeof currentEditCommands === 'string') {
+                try {
+                    const parsed = JSON.parse(currentEditCommands);
+                    commandJson = JSON.stringify(parsed);
+                } catch (e) {
+                    commandJson = JSON.stringify(currentEditCommands);
+                }
+            } else {
+                commandJson = JSON.stringify(currentEditCommands);
+            }
+            
+            console.log("commandJson after processing:", commandJson);
+            
+            const videoPath = videoInfo.video_path || videoInfo.original_path;
+            if (!videoPath) {
+                throw new Error("動画パスが見つかりません");
+            }
+            
+            return fetch('/api/process-edit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    video_path: videoPath,
+                    client_id: parseInt(clientId) || 1,
+                    command_json: commandJson,
+                    script_id: null
+                })
+            });
         })
-    })
     .then(response => response.json())
     .then(data => {
         processingMessage.classList.add('d-none');
         
-        if (data.result_url) {
+        if (data.download_url) {
             const resultVideo = document.getElementById('resultVideo');
             const downloadLink = document.getElementById('downloadLink');
             
-            resultVideo.src = data.result_url;
-            downloadLink.href = data.result_url;
+            resultVideo.src = data.download_url;
+            downloadLink.href = data.download_url;
             downloadLink.download = data.filename || 'edited_video.mp4';
             
             resultContainer.classList.remove('d-none');
