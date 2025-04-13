@@ -1502,6 +1502,65 @@ async def get_instagram_analysis(post_id: Optional[int] = None):
     else:
         return {"results": get_instagram_analysis()}
 
+@app.get("/api/get-script-proposals", response_model=dict)
+async def api_get_script_proposals(
+    clientId: int,
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """クライアントの台本提案一覧を取得するAPIエンドポイント（クライアントワークフロー用）"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, title, content, is_selected FROM script_proposals WHERE client_id = ? ORDER BY created_at DESC",
+            (clientId,)
+        )
+        proposals = [dict(row) for row in cursor.fetchall()]
+        return {
+            "success": True,
+            "proposals": proposals
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"台本提案の取得中にエラーが発生しました: {str(e)}"
+        }
+
+@app.get("/api/generate-shooting-instructions", response_model=dict)
+async def api_generate_shooting_instructions(
+    proposalId: int,
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """撮影指示書を生成するAPIエンドポイント（クライアントワークフロー用）"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT client_id FROM script_proposals WHERE id = ?",
+            (proposalId,)
+        )
+        proposal = cursor.fetchone()
+        
+        if not proposal:
+            return {"success": False, "message": "台本提案が見つかりません"}
+        
+        client_id = proposal[0]
+        instructions = generate_shooting_instructions(client_id, proposalId)
+        instruction_id = store_shooting_instructions(client_id, proposalId, instructions)
+        
+        return {"success": True, "instruction_id": instruction_id, "instructions": instructions}
+    except Exception as e:
+        return {"success": False, "message": f"撮影指示書の生成中にエラーが発生しました: {str(e)}"}
+
+@app.post("/api/upload-video", response_model=dict)
+async def api_upload_video(
+    file: UploadFile = File(...),
+    client_id: int = Form(...),
+    aspect_ratio: str = Form("16:9"),
+    margin_seconds: float = Form(0.5),
+    conn: sqlite3.Connection = Depends(get_db)
+):
+    """動画をアップロードするAPIエンドポイント（クライアントワークフロー用）"""
+    return await upload_video(file, client_id, aspect_ratio, margin_seconds, conn)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
