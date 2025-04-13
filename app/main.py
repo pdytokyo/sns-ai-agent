@@ -47,6 +47,8 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static/uploaded_videos", StaticFiles(directory="uploaded_videos"), name="uploaded_videos")
+app.mount("/static/output", StaticFiles(directory="output"), name="output")
 
 @app.on_event("startup")
 async def startup_event():
@@ -1271,7 +1273,7 @@ async def upload_video(
     client_id: int = Form(...),
     aspect_ratio: str = Form("16:9"),
     margin_seconds: float = Form(0.5),
-    conn: sqlite3.Connection = Depends(get_db)
+    conn: sqlite3.Connection = Depends(get_data_db)
 ):
     """動画をアップロードし、アスペクト比とマージン設定を保存するエンドポイント"""
     try:
@@ -1286,21 +1288,22 @@ async def upload_video(
         
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO uploads (filename, original_filename, aspect_ratio, margin_seconds, client_id) VALUES (?, ?, ?, ?, ?)",
-            (unique_filename, file.filename, aspect_ratio, margin_seconds, client_id)
+            "INSERT INTO uploads (filename, original_path, aspect_ratio, margin_seconds, client_id) VALUES (?, ?, ?, ?, ?)",
+            (unique_filename, file_path, aspect_ratio, margin_seconds, client_id)
         )
         conn.commit()
         upload_id = cursor.lastrowid
         
         return {
             "success": True,
-            "id": upload_id,
+            "video_id": upload_id,
             "filename": unique_filename,
             "original_filename": file.filename,
             "aspect_ratio": aspect_ratio,
             "margin_seconds": margin_seconds,
             "client_id": client_id,
-            "file_path": file_path
+            "video_path": file_path,
+            "video_url": f"/static/uploaded_videos/{unique_filename}"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"動画アップロード中にエラーが発生しました: {str(e)}")
@@ -1799,7 +1802,7 @@ async def edit_ui():
 @app.get("/static/edit_ui/index.html")
 async def edit_ui_static():
     """音声編集UIの静的ファイルを表示するエンドポイント"""
-    return FileResponse("app/edit_ui/index.html")
+    return FileResponse("app/static/edit_ui/index.html")
 
 @app.get("/edit_ui/index.html")
 async def edit_ui_redirect():
