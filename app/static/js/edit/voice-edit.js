@@ -79,21 +79,48 @@ function handleVideoUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
     
+    if (!file.name.toLowerCase().endsWith('.mp4')) {
+        alert('mp4形式の動画ファイルのみアップロード可能です');
+        return;
+    }
+    
+    const maxSize = 500 * 1024 * 1024; // 500MB
+    if (file.size > maxSize) {
+        alert('ファイルサイズは500MB以下にしてください');
+        return;
+    }
+    
     const formData = new FormData();
     formData.append('file', file);
     formData.append('client_id', clientId);
+    formData.append('aspect_ratio', '16:9');
+    formData.append('margin_seconds', 0.5);
     
-    fetch('/api/upload-video', {
+    const uploadStatusEl = document.createElement('div');
+    uploadStatusEl.className = 'alert alert-info mt-2';
+    uploadStatusEl.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div> アップロード中...';
+    document.getElementById('videoPreviewContainer').before(uploadStatusEl);
+    
+    fetch('/upload_video/', {
         method: 'POST',
         body: formData
     })
     .then(response => response.json())
     .then(data => {
+        uploadStatusEl.remove();
+        
         if (data.video_id) {
             selectedVideoId = data.video_id;
             
             const videoPreview = document.getElementById('videoPreview');
             const videoPreviewContainer = document.getElementById('videoPreviewContainer');
+            
+            const successEl = document.createElement('div');
+            successEl.className = 'alert alert-success mt-2 mb-2';
+            successEl.innerHTML = `<strong>アップロード成功:</strong> ${file.name} (ID: ${data.video_id})`;
+            videoPreviewContainer.before(successEl);
+            
+            setTimeout(() => successEl.remove(), 3000);
             
             videoPreview.src = data.video_url;
             videoPreviewContainer.classList.remove('d-none');
@@ -105,6 +132,7 @@ function handleVideoUpload(event) {
         }
     })
     .catch(error => {
+        uploadStatusEl.remove();
         console.error('動画アップロードに失敗しました:', error);
         alert('動画アップロードに失敗しました。');
     });
@@ -221,12 +249,37 @@ function submitText() {
 }
 
 function convertToEditCommands(text) {
+    let videoMetadata = null;
+    
+    if (selectedVideoId) {
+        fetch(`/api/get-video-info?video_id=${selectedVideoId}`)
+            .then(response => response.json())
+            .then(data => {
+                videoMetadata = data;
+                sendEditRequest(text, videoMetadata);
+            })
+            .catch(error => {
+                console.error('動画情報の取得に失敗しました:', error);
+                sendEditRequest(text, null);
+            });
+    } else {
+        sendEditRequest(text, null);
+    }
+}
+
+function sendEditRequest(text, videoMetadata) {
+    const requestData = {
+        text: text,
+        video_id: selectedVideoId,
+        video_metadata: videoMetadata
+    };
+    
     fetch('/api/text-to-edit-commands', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
+            'Content-Type': 'application/json'
         },
-        body: `text=${encodeURIComponent(text)}&video_id=${selectedVideoId}`
+        body: JSON.stringify(requestData)
     })
     .then(response => response.json())
     .then(data => {
