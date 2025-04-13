@@ -368,7 +368,7 @@ function applyEdits() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    video_path: videoInfo.video_path || videoInfo.path || `uploaded_videos/upload_${selectedVideoId}.mp4`,
+                    video_path: `uploaded_videos/${selectedVideoId}.mp4`,
                     client_id: parseInt(clientId) || 1,
                     command_json: JSON.stringify(currentEditCommands),
                     script_id: null
