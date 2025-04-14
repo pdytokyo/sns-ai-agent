@@ -76,6 +76,7 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.mount("/static/uploaded_videos", StaticFiles(directory="uploaded_videos"), name="uploaded_videos")
 app.mount("/static/output", StaticFiles(directory="output"), name="output")
+app.mount("/uploaded_videos", StaticFiles(directory="uploaded_videos"), name="uploaded_videos")
 
 @app.on_event("startup")
 async def startup_event():
@@ -1692,17 +1693,21 @@ class ProcessEditRequest(BaseModel):
     video_path: str
 
 @app.post("/api/transcribe-audio", response_model=dict)
-async def transcribe_audio(request: TranscribeRequest):
+async def transcribe_audio(
+    audio: UploadFile = File(...),
+    client_id: str = Form(...)
+):
     """音声をWhisper APIで文字起こしするエンドポイント"""
+    temp_file_path = None
     try:
-        import base64
         import tempfile
+        import uuid
         
-        audio_data = base64.b64decode(request.audio_base64)
+        audio_content = await audio.read()
         
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-            temp_file.write(audio_data)
-            temp_file_path = temp_file.name
+        temp_file_path = f"/tmp/{uuid.uuid4()}.wav"
+        with open(temp_file_path, "wb") as f:
+            f.write(audio_content)
         
         sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from voice_edit_agent.voice_input import VoiceInput
@@ -1710,11 +1715,18 @@ async def transcribe_audio(request: TranscribeRequest):
         voice_input = VoiceInput()
         transcript = voice_input.transcribe_from_file(temp_file_path)
         
-        os.unlink(temp_file_path)
+        logger.info(f"音声文字起こし成功: client_id={client_id}, transcript={transcript[:50]}...")
         
-        return {"success": True, "transcript": transcript}
+        return {"success": True, "text": transcript, "transcript": transcript}
     except Exception as e:
+        logger.error(f"音声の文字起こしに失敗しました: {str(e)}")
         raise HTTPException(status_code=500, detail=f"音声の文字起こしに失敗しました: {str(e)}")
+    finally:
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except Exception as e:
+                logger.error(f"一時ファイルの削除に失敗しました: {str(e)}")
 
 @app.post("/api/voice-to-text", response_model=dict)
 async def voice_to_text(audio_file: UploadFile = File(...)):
