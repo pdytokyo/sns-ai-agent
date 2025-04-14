@@ -1773,9 +1773,11 @@ async def text_to_edit_commands(request: TextToEditCommandRequest = Body(...)):
     try:
         sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from voice_edit_agent.natural_edit_agent import NaturalEditAgent
+        import traceback
         
-        video_metadata = request.video_metadata
-        if request.video_id and not video_metadata:
+        video_metadata = request.video_metadata if request.video_metadata is not None else {}
+        
+        if request.video_id and (not video_metadata or video_metadata == {}):
             video_metadata = {"duration": 60.0, "resolution": "1920x1080"}
         
         agent = NaturalEditAgent()
@@ -1784,6 +1786,8 @@ async def text_to_edit_commands(request: TextToEditCommandRequest = Body(...)):
         
         return {"commands": validated_commands}
     except Exception as e:
+        logger.error(f"編集コマンド生成エラー: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"編集コマンドの生成に失敗しました: {str(e)}")
 
 @app.post("/api/process-edit", response_model=dict)
