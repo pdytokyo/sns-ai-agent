@@ -11,8 +11,6 @@ from pathlib import Path
 import openai
 from openai import OpenAI
 import wave
-import pyaudio
-import numpy as np
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import get_api_key, OPENAI_API_KEY
@@ -30,62 +28,12 @@ class VoiceInput:
         self.api_key = api_key or OPENAI_API_KEY
         if not self.api_key:
             raise ValueError("APIキーが設定されていません。.envファイルにOPENAI_API_KEYを設定してください。")
-        
-        self.format = pyaudio.paInt16
-        self.channels = 1
-        self.rate = 16000
-        self.chunk = 1024
-        self.audio = pyaudio.PyAudio()
-    
-    def record_audio(self, seconds=10, output_path=None):
-        """
-        マイクから音声を録音
-        
-        Args:
-            seconds (int): 録音する秒数
-            output_path (str, optional): 出力ファイルのパス。指定しない場合は一時ファイル。
-            
-        Returns:
-            str: 録音した音声ファイルのパス
-        """
-        print(f"{seconds}秒間の録音を開始します。話してください...")
-        
-        if not output_path:
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-                output_path = temp_file.name
-        
-        stream = self.audio.open(
-            format=self.format,
-            channels=self.channels,
-            rate=self.rate,
-            input=True,
-            frames_per_buffer=self.chunk
-        )
-        
-        frames = []
-        for i in range(0, int(self.rate / self.chunk * seconds)):
-            data = stream.read(self.chunk)
-            frames.append(data)
-        
-        stream.stop_stream()
-        stream.close()
-        
-        wf = wave.open(output_path, 'wb')
-        wf.setnchannels(self.channels)
-        wf.setsampwidth(self.audio.get_sample_size(self.format))
-        wf.setframerate(self.rate)
-        wf.writeframes(b''.join(frames))
-        wf.close()
-        
-        print(f"録音が完了しました: {output_path}")
-        return output_path
     
     def close(self):
         """
         オーディオリソースを解放
         """
-        self.audio.terminate()
-    
+        pass
     def transcribe_from_file(self, audio_path):
         """
         音声ファイルから文字起こし
@@ -117,7 +65,10 @@ class VoiceInput:
     
     def transcribe_from_microphone(self, seconds=10):
         """
-        マイクから直接録音して文字起こし
+        マイクから直接録音して文字起こし - 非推奨
+        
+        このメソッドは後方互換性のために残されていますが、
+        ブラウザ側で録音を行い、transcribe_from_fileを使用することを推奨します。
         
         Args:
             seconds (int): 録音する秒数
@@ -125,17 +76,10 @@ class VoiceInput:
         Returns:
             str: 文字起こし結果
         """
-        try:
-            audio_path = self.record_audio(seconds)
-            transcription = self.transcribe_from_file(audio_path)
-            
-            os.remove(audio_path)
-            
-            return transcription
-        
-        except Exception as e:
-            print(f"マイク録音・文字起こし中にエラーが発生しました: {str(e)}")
-            raise
+        raise NotImplementedError(
+            "このメソッドは非推奨です。ブラウザ側で録音を行い、"
+            "transcribe_from_fileメソッドを使用してください。"
+        )
 
 def cli_interface():
     """

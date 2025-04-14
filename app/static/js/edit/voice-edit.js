@@ -55,7 +55,7 @@ function loadVideos() {
 
 function handleVideoSelect(event) {
     const videoId = event.target.value;
-    if (!videoId) return;
+    if (!videoId || typeof videoId !== 'string') return;
     
     selectedVideoId = videoId;
     const videoPreview = document.getElementById('videoPreview');
@@ -280,7 +280,7 @@ function submitText() {
 function convertToEditCommands(text) {
     let videoMetadata = null;
     
-    if (selectedVideoId) {
+    if (selectedVideoId && typeof selectedVideoId === 'string') {
         if (selectedVideoId.startsWith('upload_') || selectedVideoId.startsWith('output_') || selectedVideoId.startsWith('history_')) {
             const videoPath = document.getElementById('videoPreview').src;
             videoMetadata = {
