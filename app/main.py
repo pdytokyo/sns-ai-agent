@@ -74,9 +74,8 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
-app.mount("/static/uploaded_videos", StaticFiles(directory="uploaded_videos"), name="uploaded_videos")
-app.mount("/static/output", StaticFiles(directory="output"), name="output")
 app.mount("/uploaded_videos", StaticFiles(directory="uploaded_videos"), name="uploaded_videos")
+app.mount("/output", StaticFiles(directory="output"), name="output")
 
 @app.on_event("startup")
 async def startup_event():
