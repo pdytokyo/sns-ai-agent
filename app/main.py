@@ -17,6 +17,8 @@ import uuid
 import secrets
 import sys
 import threading
+import logging
+import traceback
 from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from db_enhancement import research_detailed_success_case, store_success_case, collect_copyright_free_audio, store_audio_tracks, init_db as init_enhanced_db
@@ -34,7 +36,32 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 if not os.getenv("OPENAI_API_KEY"):
     print("Warning: OPENAI_API_KEY not found in environment variables")
 
+def setup_logging():
+    logs_dir = "logs"
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    logger = logging.getLogger("sns-ai-agent")
+    logger.setLevel(logging.DEBUG)
+    
+    file_handler = logging.FileHandler(os.path.join(logs_dir, "app.log"))
+    file_handler.setLevel(logging.DEBUG)
+    
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger
+
+logger = setup_logging()
+
 os.makedirs("uploads", exist_ok=True)
+os.makedirs("uploaded_videos", exist_ok=True)  # uploaded_videosディレクトリを確実に作成
 
 app = FastAPI(title="SNS AI Agent Web Prototype")
 
@@ -52,20 +79,39 @@ app.mount("/static/output", StaticFiles(directory="output"), name="output")
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database tables on startup"""
-    print("Initializing enhanced database tables...")
-    init_enhanced_db()
-    print("Enhanced database tables initialized successfully.")
-    
+    """アプリケーション起動時に実行される処理"""
     try:
-        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from scheduler import start_scheduler_thread
-        scheduler_thread = start_scheduler_thread()
-        print("Trend collection scheduler started successfully.")
-    except Exception as e:
-        print(f"Warning: Failed to start trend collection scheduler: {str(e)}")
+        logger.info("アプリケーション起動")
         
-    init_db()
+        logger.info("拡張データベーステーブルの初期化...")
+        init_enhanced_db()
+        logger.info("拡張データベーステーブルの初期化完了")
+        
+        conn = sqlite3.connect("data.db", check_same_thread=False)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='uploads'")
+        if not cursor.fetchone():
+            logger.warning("uploads テーブルが存在しません。テーブルを作成します。")
+            init_db()
+        else:
+            logger.info("データベーステーブル確認OK")
+            
+        conn.close()
+        
+        try:
+            sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            from scheduler import start_scheduler_thread
+            scheduler_thread = start_scheduler_thread()
+            logger.info("トレンド収集スケジューラ起動完了")
+        except Exception as e:
+            logger.warning(f"トレンド収集スケジューラの起動に失敗しました: {str(e)}")
+            logger.warning(traceback.format_exc())
+        
+        logger.info("アプリケーション起動完了")
+    except Exception as e:
+        logger.error(f"起動中にエラーが発生しました: {str(e)}")
+        logger.error(traceback.format_exc())
 
 # security = HTTPBasic()
 
@@ -1277,22 +1323,41 @@ async def upload_video(
 ):
     """動画をアップロードし、アスペクト比とマージン設定を保存するエンドポイント"""
     try:
+        logger.info(f"動画アップロード開始: ファイル名={file.filename}, client_id={client_id}")
+        logger.debug(f"パラメータ: aspect_ratio={aspect_ratio}, margin_seconds={margin_seconds}")
+        
         os.makedirs("uploaded_videos", exist_ok=True)
         
         file_extension = os.path.splitext(file.filename)[1]
         unique_filename = f"{uuid.uuid4()}{file_extension}"
         file_path = os.path.join("uploaded_videos", unique_filename)
         
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        logger.debug(f"ファイル保存先: {file_path}")
         
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO uploads (filename, original_path, aspect_ratio, margin_seconds, client_id) VALUES (?, ?, ?, ?, ?)",
-            (unique_filename, file_path, aspect_ratio, margin_seconds, client_id)
-        )
-        conn.commit()
-        upload_id = cursor.lastrowid
+        try:
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            logger.debug(f"ファイル保存成功: {file_path}")
+        except Exception as file_error:
+            logger.error(f"ファイル保存エラー: {str(file_error)}")
+            logger.error(traceback.format_exc())
+            raise Exception(f"ファイル保存中にエラーが発生しました: {str(file_error)}")
+        
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO uploads (filename, original_path, aspect_ratio, margin_seconds, client_id) VALUES (?, ?, ?, ?, ?)",
+                (unique_filename, file_path, aspect_ratio, margin_seconds, client_id)
+            )
+            conn.commit()
+            upload_id = cursor.lastrowid
+            logger.debug(f"DB登録成功: id={upload_id}")
+        except Exception as db_error:
+            logger.error(f"DB登録エラー: {str(db_error)}")
+            logger.error(traceback.format_exc())
+            raise Exception(f"データベース登録中にエラーが発生しました: {str(db_error)}")
+        
+        logger.info(f"動画アップロード完了: id={upload_id}, ファイル名={unique_filename}")
         
         return {
             "success": True,
@@ -1306,6 +1371,8 @@ async def upload_video(
             "video_url": f"/static/uploaded_videos/{unique_filename}"
         }
     except Exception as e:
+        logger.error(f"動画アップロード中にエラーが発生しました: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"動画アップロード中にエラーが発生しました: {str(e)}")
 
 @app.post("/process_uploaded_video/", response_model=dict)

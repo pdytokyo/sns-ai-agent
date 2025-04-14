@@ -256,8 +256,8 @@ function displayScriptProposals(proposals) {
                 <div class="card-body">
                     <p>${proposal.content.substring(0, 150)}...</p>
                 </div>
-                <div class="card-footer">
-                    <button class="btn btn-sm btn-outline-primary view-script-btn">詳細を見る</button>
+                <div class="card-footer text-center">
+                    <button class="btn btn-sm btn-outline-primary select-script-btn">選択</button>
                 </div>
             </div>
         `;
@@ -265,14 +265,17 @@ function displayScriptProposals(proposals) {
         container.appendChild(proposalElement);
     });
     
-    document.querySelectorAll('.view-script-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const proposalCard = this.closest('.script-proposal');
-            const proposalId = proposalCard.dataset.proposalId;
-            
-            showScriptDetailModal(proposalId);
+    setTimeout(() => {
+        document.querySelectorAll('.select-script-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const proposalCard = this.closest('.script-proposal');
+                const proposalId = proposalCard.dataset.proposalId;
+                
+                console.log('Script proposal selected:', proposalId);
+                showScriptDetailModal(proposalId);
+            });
         });
-    });
+    }, 100);
 }
 
 function setupScriptProposalSelection() {
@@ -417,6 +420,112 @@ function setupSubtitleEditing() {
             
             saveSubtitles(subtitles);
         });
+    }
+}
+
+function showScriptDetailModal(proposalId) {
+    console.log('showScriptDetailModal called with proposalId:', proposalId);
+    const proposals = document.querySelectorAll('.script-proposal');
+    let selectedProposal = null;
+    
+    proposals.forEach(proposal => {
+        if (proposal.dataset.proposalId === proposalId) {
+            selectedProposal = proposal;
+            proposal.classList.add('selected');
+        } else {
+            proposal.classList.remove('selected');
+        }
+    });
+    
+    if (!selectedProposal) {
+        console.error('No proposal found with ID:', proposalId);
+        return;
+    }
+    
+    console.log('Selected proposal:', selectedProposal);
+    const title = selectedProposal.querySelector('.card-header h6').textContent;
+    const content = selectedProposal.querySelector('.card-body p').textContent.replace('...', '');
+    console.log('Title:', title, 'Content:', content);
+    
+    let modal = document.getElementById('scriptDetailModal');
+    if (!modal) {
+        console.log('Creating new modal');
+        modal = document.createElement('div');
+        modal.id = 'scriptDetailModal';
+        modal.className = 'modal fade';
+        modal.setAttribute('tabindex', '-1');
+        modal.setAttribute('aria-hidden', 'true');
+        
+        modal.innerHTML = `
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">台本詳細</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <h6 id="modalScriptTitle"></h6>
+                        <div class="mb-3">
+                            <textarea id="modalScriptContent" class="form-control" rows="10"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                        <button type="button" class="btn btn-primary" id="selectThisScriptBtn">この台本を選択</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        document.getElementById('selectThisScriptBtn').addEventListener('click', function() {
+            console.log('Script selected with ID:', proposalId);
+            selectedScriptId = proposalId;
+            saveSession();
+            
+            try {
+                const bsModal = bootstrap.Modal.getInstance(document.getElementById('scriptDetailModal'));
+                if (bsModal) {
+                    bsModal.hide();
+                } else {
+                    console.error('Modal instance not found');
+                    modal.style.display = 'none';
+                    modal.classList.remove('show');
+                    document.body.classList.remove('modal-open');
+                    const backdrop = document.querySelector('.modal-backdrop');
+                    if (backdrop) backdrop.remove();
+                }
+            } catch (error) {
+                console.error('Error hiding modal:', error);
+                modal.style.display = 'none';
+                modal.classList.remove('show');
+                document.body.classList.remove('modal-open');
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) backdrop.remove();
+            }
+            
+            generateShootingInstructions(proposalId);
+        });
+    } else {
+        console.log('Using existing modal');
+    }
+    
+    document.getElementById('modalScriptTitle').textContent = title;
+    document.getElementById('modalScriptContent').value = content;
+    
+    try {
+        console.log('Showing modal');
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+    } catch (error) {
+        console.error('Error showing modal:', error);
+        modal.style.display = 'block';
+        modal.classList.add('show');
+        document.body.classList.add('modal-open');
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        document.body.appendChild(backdrop);
     }
 }
 
