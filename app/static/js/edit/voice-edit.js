@@ -64,7 +64,7 @@ function handleVideoSelect(event) {
     let videoPath = '';
     if (videoId.startsWith('upload_')) {
         const filename = videoId.replace('upload_', '');
-        videoPath = `/static/uploaded_videos/${filename}`;
+        videoPath = `/uploaded_videos/${filename}`;
     } else if (videoId.startsWith('output_')) {
         const filename = videoId.replace('output_', '');
         videoPath = `/static/output/${filename}`;
@@ -405,7 +405,7 @@ function applyEdits() {
     
     if (selectedVideoId.startsWith('upload_')) {
         const filename = selectedVideoId.replace('upload_', '');
-        videoPath = `/static/uploaded_videos/${filename}`;
+        videoPath = `/uploaded_videos/${filename}`;
         videoInfoPromise = Promise.resolve({ video_path: videoPath });
     } else if (selectedVideoId.startsWith('output_')) {
         const filename = selectedVideoId.replace('output_', '');
