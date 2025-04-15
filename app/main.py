@@ -1762,10 +1762,13 @@ async def natural_edit(request: EditCommandRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"編集コマンドの生成に失敗しました: {str(e)}")
 
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
+
 class TextToEditCommandRequest(BaseModel):
     text: str
-    video_id: Optional[str] = None
-    video_metadata: Optional[dict] = None
+    video_id: Optional[int] = None
+    video_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 @app.post("/api/text-to-edit-commands", response_model=dict)
 async def text_to_edit_commands(request: TextToEditCommandRequest = Body(...)):
