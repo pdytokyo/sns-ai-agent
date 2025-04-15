@@ -1,0 +1,34 @@
+# fly.toml configuration for sns-ai-agent
+app = "sns-ai-agent"
+primary_region = "nrt"
+
+[build]
+  builder = "paketobuildpacks/builder:base"
+
+[env]
+  PORT = "8080"
+  PYTHONUNBUFFERED = "1"
+
+[mounts]
+  source = "sns_ai_agent_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[statics]]
+  guest_path = "/app/static"
+  url_prefix = "/static"
+
+[[statics]]
+  guest_path = "/app/static/uploaded_videos"
+  url_prefix = "/uploaded_videos"
+
+[[statics]]
+  guest_path = "/app/output"
+  url_prefix = "/output"
