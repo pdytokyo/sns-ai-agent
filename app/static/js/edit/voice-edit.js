@@ -7,6 +7,8 @@ let selectedVideoId = null;
 let currentEditCommands = null;
 let clientId = localStorage.getItem('clientId') || 'test-client';
 
+window.selectedVideoId = null;
+
 document.addEventListener('DOMContentLoaded', function() {
     initializeUI();
     loadVideos();
@@ -58,16 +60,39 @@ function handleVideoSelect(event) {
     if (!videoId || typeof videoId !== 'string') return;
     
     selectedVideoId = videoId;
-    const videoPreview = document.getElementById('videoPreview');
+    window.selectedVideoId = videoId;
+    
+    const videoPreview = document.getElementById('videoPreview') || document.getElementById('videoPlayer');
     const videoPreviewContainer = document.getElementById('videoPreviewContainer');
     
+    const videoIdInput = document.getElementById('videoId');
+    if (videoIdInput) {
+        videoIdInput.value = videoId;
+        console.log('videoId set to:', videoId); // デバッグ用
+    } else {
+        console.error('videoId input field not found');
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.id = 'videoId';
+        hiddenInput.value = videoId;
+        document.body.appendChild(hiddenInput);
+        console.log('Created videoId input field with value:', videoId);
+    }
+    
+    const videoLoadedEvent = new Event('video-selected');
+    document.dispatchEvent(videoLoadedEvent);
+    
     let videoPath = '';
+    console.log('処理するビデオID:', videoId);
+    
     if (videoId.startsWith('upload_')) {
         const filename = videoId.replace('upload_', '');
         videoPath = `/uploaded_videos/${filename}`;
+        console.log('アップロードビデオパス設定:', videoPath);
     } else if (videoId.startsWith('output_')) {
         const filename = videoId.replace('output_', '');
         videoPath = `/static/output/${filename}`;
+        console.log('出力ビデオパス設定:', videoPath);
     } else if (videoId.startsWith('history_')) {
         fetch(`/api/edit-commands?id=${videoId.replace('history_', '')}`)
             .then(response => response.json())
@@ -77,12 +102,28 @@ function handleVideoSelect(event) {
                     videoPreview.src = `/static/output/${filename}`;
                     videoPreviewContainer.classList.remove('d-none');
                     videoPreview.load();
+                    
+                    if (videoIdInput) videoIdInput.value = videoId;
+                    
+                    const videoLoadedEvent = new Event('video-loaded');
+                    document.dispatchEvent(videoLoadedEvent);
                 }
             })
             .catch(error => {
                 console.error('編集履歴の取得に失敗しました:', error);
             });
         return;
+    } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(videoId)) {
+        videoPath = `/uploaded_videos/${videoId}.mp4`;
+        console.log('UUID形式のビデオID検出、パス設定:', videoPath);
+    } else if (videoId.includes('.mp4')) {
+        if (videoId.includes('-')) {
+            videoPath = `/uploaded_videos/${videoId}`;
+            console.log('MP4ファイル名検出、アップロードディレクトリに設定:', videoPath);
+        } else {
+            videoPath = `/static/uploaded_videos/${videoId}`;
+            console.log('その他のMP4ファイル名検出、静的ディレクトリに設定:', videoPath);
+        }
     } else {
         fetch(`/video_info/${videoId}`)
             .then(response => response.json())
@@ -91,6 +132,11 @@ function handleVideoSelect(event) {
                     videoPreview.src = data.video_url;
                     videoPreviewContainer.classList.remove('d-none');
                     videoPreview.load();
+                    
+                    if (videoIdInput) videoIdInput.value = videoId;
+                    
+                    const videoLoadedEvent = new Event('video-loaded');
+                    document.dispatchEvent(videoLoadedEvent);
                 }
             })
             .catch(error => {
@@ -102,6 +148,11 @@ function handleVideoSelect(event) {
     videoPreview.src = videoPath;
     videoPreviewContainer.classList.remove('d-none');
     videoPreview.load();
+    
+    videoPreview.addEventListener('loadedmetadata', function() {
+        const videoLoadedEvent = new Event('video-loaded');
+        document.dispatchEvent(videoLoadedEvent);
+    });
 }
 
 function handleVideoUpload(event) {
