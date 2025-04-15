@@ -28,6 +28,7 @@ from auto_research import start_auto_research_thread, run_auto_research
 from script_generator import generate_script_proposals, store_script_proposals
 from shooting_instructions_generator import generate_shooting_instructions, store_shooting_instructions
 from subtitle_generator import generate_subtitles, store_subtitles
+from config import OPENAI_API_KEY
 from bgm_integrator import create_final_video
 
 load_dotenv()
@@ -61,7 +62,10 @@ def setup_logging():
 logger = setup_logging()
 
 os.makedirs("uploads", exist_ok=True)
-os.makedirs("uploaded_videos", exist_ok=True)  # uploaded_videosディレクトリを確実に作成
+os.makedirs("static", exist_ok=True)
+os.makedirs("static/uploaded_videos", exist_ok=True)
+os.makedirs("output", exist_ok=True)
+os.makedirs("uploaded_videos", exist_ok=True)  # 後方互換性のために維持
 
 app = FastAPI(title="SNS AI Agent Web Prototype")
 
@@ -73,8 +77,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-app.mount("/uploaded_videos", StaticFiles(directory="uploaded_videos"), name="uploaded_videos")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/uploaded_videos", StaticFiles(directory="static/uploaded_videos"), name="uploaded_videos")
 app.mount("/output", StaticFiles(directory="output"), name="output")
 
 @app.on_event("startup")
@@ -82,6 +86,11 @@ async def startup_event():
     """アプリケーション起動時に実行される処理"""
     try:
         logger.info("アプリケーション起動")
+        
+        required_dirs = ["static", "static/uploaded_videos", "output", "uploads", "uploaded_videos"]
+        for directory in required_dirs:
+            os.makedirs(directory, exist_ok=True)
+            logger.info(f"ディレクトリ確認: {directory}")
         
         logger.info("拡張データベーステーブルの初期化...")
         init_enhanced_db()
@@ -1326,11 +1335,11 @@ async def upload_video(
         logger.info(f"動画アップロード開始: ファイル名={file.filename}, client_id={client_id}")
         logger.debug(f"パラメータ: aspect_ratio={aspect_ratio}, margin_seconds={margin_seconds}")
         
-        os.makedirs("uploaded_videos", exist_ok=True)
+        os.makedirs("static/uploaded_videos", exist_ok=True)
         
         file_extension = os.path.splitext(file.filename)[1]
         unique_filename = f"{uuid.uuid4()}{file_extension}"
-        file_path = os.path.join("uploaded_videos", unique_filename)
+        file_path = os.path.join("static/uploaded_videos", unique_filename)
         
         logger.debug(f"ファイル保存先: {file_path}")
         
@@ -1368,7 +1377,7 @@ async def upload_video(
             "margin_seconds": margin_seconds,
             "client_id": client_id,
             "video_path": file_path,
-            "video_url": f"/static/uploaded_videos/{unique_filename}"
+            "video_url": f"/uploaded_videos/{unique_filename}"
         }
     except Exception as e:
         logger.error(f"動画アップロード中にエラーが発生しました: {str(e)}")
@@ -1890,6 +1899,918 @@ async def edit_ui_static():
 async def edit_ui_redirect():
     """音声編集UIページへのリダイレクト（誤ったパス対応）"""
     return RedirectResponse("/static/edit_ui/index.html")
+
+@app.get("/api/subtitle-templates", response_model=dict)
+async def get_subtitle_templates():
+    """テロップスタイルテンプレート一覧を取得するエンドポイント"""
+    try:
+        from subtitle_templates import SUBTITLE_TEMPLATES
+        return {"success": True, "templates": SUBTITLE_TEMPLATES}
+    except Exception as e:
+        logger.error(f"テンプレート取得エラー: {str(e)}")
+        return {"success": False, "message": f"テンプレート取得エラー: {str(e)}"}
+
+@app.post("/api/generate-subtitles", response_model=dict)
+async def generate_subtitles_endpoint(request: dict = Body(...)):
+    """
+    テロップを生成して動画に適用するエンドポイント
+    """
+    try:
+        video_id = request.get("video_id")
+        template_id = request.get("template_id", "default")
+        
+        if not video_id:
+            raise HTTPException(status_code=400, detail="video_id is required")
+        
+        conn = sqlite3.connect('data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT filename, path FROM uploads WHERE id = ?",
+            (video_id,)
+        )
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        filename, original_path = result
+        
+        if not os.path.exists(original_path):
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        from subtitle_templates import get_template_by_id
+        template = get_template_by_id(template_id)
+        
+        from voice_edit_agent.voice_input import VoiceInput
+        voice_input = VoiceInput()
+        transcript = voice_input.transcribe_from_file(original_path)
+        
+        output_filename = f"subtitle_{uuid.uuid4()}.mp4"
+        output_path = os.path.join("static/uploaded_videos", output_filename)
+        
+        from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
+        
+        try:
+            video = VideoFileClip(original_path)
+            
+            font = template.get("font", "Arial")
+            font_size = template.get("font_size", 24)
+            color = template.get("color", "white")
+            bg_color = template.get("bg_color", "rgba(0, 0, 0, 0.5)")
+            position = template.get("position", "bottom")
+            
+            txt_clip = TextClip(
+                transcript[:100] + "...", 
+                fontsize=font_size, 
+                font=font,
+                color=color,
+                bg_color=bg_color,
+                method='caption'
+            )
+            
+            if position == "bottom":
+                txt_clip = txt_clip.set_position(('center', 'bottom'))
+            elif position == "top":
+                txt_clip = txt_clip.set_position(('center', 'top'))
+            else:
+                txt_clip = txt_clip.set_position('center')
+            
+            txt_clip = txt_clip.set_duration(video.duration)
+            
+            final_clip = CompositeVideoClip([video, txt_clip])
+            final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
+            
+            video.close()
+            final_clip.close()
+            
+            cursor.execute(
+                "INSERT INTO edit_commands (command_json, video_path, result_path) VALUES (?, ?, ?)",
+                (
+                    json.dumps({"type": "subtitle", "template_id": template_id, "video_id": video_id}),
+                    original_path,
+                    output_path
+                )
+            )
+            conn.commit()
+            edit_id = cursor.lastrowid
+            conn.close()
+            
+            return {
+                "success": True,
+                "edit_id": edit_id,
+                "processed_video_url": f"/uploaded_videos/{output_filename}",
+                "template_id": template_id
+            }
+        except Exception as e:
+            logger.error(f"テロップ生成中にエラーが発生しました: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"テロップ生成中にエラーが発生しました: {str(e)}")
+    except Exception as e:
+        logger.error(f"テロップ生成APIエラー: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/suggest-bgm", response_model=dict)
+async def suggest_bgm(request: dict = Body(...)):
+    """
+    動画の内容を分析し、適切なBGMジャンルを提案するエンドポイント
+    """
+    try:
+        video_id = request.get("video_id")
+        
+        if not video_id:
+            raise HTTPException(status_code=400, detail="video_id is required")
+        
+        conn = sqlite3.connect('data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT filename, path FROM uploads WHERE id = ?",
+            (video_id,)
+        )
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        filename, original_path = result
+        
+        if not os.path.exists(original_path):
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        from voice_edit_agent.voice_input import VoiceInput
+        voice_input = VoiceInput()
+        transcript = voice_input.transcribe_from_file(original_path)
+        
+        from config import OPENAI_API_KEY
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "あなたは動画の内容を分析し、最適なBGMジャンルを提案する専門家です。"},
+                    {"role": "user", "content": f"以下の動画の文字起こしを分析して、最適なBGMジャンルを3つ提案してください。それぞれのジャンルについて、なぜそのジャンルが適しているかも説明してください。\n\n文字起こし内容:\n{transcript}"}
+                ],
+                max_tokens=500
+            )
+            
+            bgm_suggestion = response.choices[0].message.content
+            
+            cursor.execute(
+                "INSERT INTO edit_commands (command_json, video_path, result_path) VALUES (?, ?, ?)",
+                (
+                    json.dumps({"type": "bgm_suggestion", "video_id": video_id, "suggestion": bgm_suggestion}),
+                    original_path,
+                    ""
+                )
+            )
+            conn.commit()
+            edit_id = cursor.lastrowid
+            conn.close()
+            
+            sample_bgms = [
+                {
+                    "id": "bgm1",
+                    "name": "爽やかなアコースティック",
+                    "genre": "アコースティック",
+                    "url": "/static/bgm/acoustic_sample.mp3",
+                    "duration": 60
+                },
+                {
+                    "id": "bgm2",
+                    "name": "エネルギッシュなロック",
+                    "genre": "ロック",
+                    "url": "/static/bgm/rock_sample.mp3",
+                    "duration": 60
+                },
+                {
+                    "id": "bgm3",
+                    "name": "感動的なオーケストラ",
+                    "genre": "オーケストラ",
+                    "url": "/static/bgm/orchestra_sample.mp3",
+                    "duration": 60
+                },
+                {
+                    "id": "bgm4",
+                    "name": "ポップなエレクトロ",
+                    "genre": "エレクトロ",
+                    "url": "/static/bgm/electro_sample.mp3",
+                    "duration": 60
+                },
+                {
+                    "id": "bgm5",
+                    "name": "落ち着いたジャズ",
+                    "genre": "ジャズ",
+                    "url": "/static/bgm/jazz_sample.mp3",
+                    "duration": 60
+                }
+            ]
+            
+            return {
+                "success": True,
+                "edit_id": edit_id,
+                "suggestion": bgm_suggestion,
+                "bgm_samples": sample_bgms
+            }
+        except Exception as e:
+            logger.error(f"BGM提案生成中にエラーが発生しました: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"BGM提案生成中にエラーが発生しました: {str(e)}")
+    except Exception as e:
+        logger.error(f"BGM提案APIエラー: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/apply-bgm", response_model=dict)
+async def apply_bgm(request: dict = Body(...)):
+    """
+    選択されたBGMを動画に適用するエンドポイント
+    """
+    try:
+        video_id = request.get("video_id")
+        bgm_id = request.get("bgm_id")
+        volume = request.get("volume", 0.3)  # デフォルトのボリューム
+        
+        if not video_id or not bgm_id:
+            raise HTTPException(status_code=400, detail="video_id and bgm_id are required")
+        
+        conn = sqlite3.connect('data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT filename, path FROM uploads WHERE id = ?",
+            (video_id,)
+        )
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        filename, original_path = result
+        
+        if not os.path.exists(original_path):
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        bgm_path = f"static/bgm/{bgm_id}.mp3"
+        if not os.path.exists(bgm_path):
+            bgm_path = "static/bgm/sample.mp3"
+        
+        output_filename = f"bgm_{uuid.uuid4()}.mp4"
+        output_path = os.path.join("static/uploaded_videos", output_filename)
+        
+        from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
+        
+        try:
+            video = VideoFileClip(original_path)
+            
+            try:
+                bgm = AudioFileClip(bgm_path)
+                bgm = bgm.volumex(volume)
+                
+                if bgm.duration < video.duration:
+                    bgm = bgm.loop(duration=video.duration)
+                else:
+                    bgm = bgm.subclip(0, video.duration)
+                
+                original_audio = video.audio
+                new_audio = CompositeAudioClip([original_audio, bgm])
+                video = video.set_audio(new_audio)
+            except Exception as e:
+                logger.warning(f"BGMの適用に失敗しました。元の音声のみで処理を続行します: {str(e)}")
+            
+            video.write_videofile(output_path, codec="libx264", audio_codec="aac")
+            video.close()
+            
+            cursor.execute(
+                "INSERT INTO edit_commands (command_json, video_path, result_path) VALUES (?, ?, ?)",
+                (
+                    json.dumps({"type": "bgm", "video_id": video_id, "bgm_id": bgm_id, "volume": volume}),
+                    original_path,
+                    output_path
+                )
+            )
+            conn.commit()
+            edit_id = cursor.lastrowid
+            conn.close()
+            
+            return {
+                "success": True,
+                "edit_id": edit_id,
+                "processed_video_url": f"/uploaded_videos/{output_filename}",
+                "bgm_id": bgm_id
+            }
+        except Exception as e:
+            logger.error(f"BGM適用中にエラーが発生しました: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"BGM適用中にエラーが発生しました: {str(e)}")
+    except Exception as e:
+        logger.error(f"BGM適用APIエラー: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/edit-range", response_model=dict)
+async def edit_range(request: dict = Body(...)):
+    """
+    指定された範囲の動画を切り取るエンドポイント
+    """
+    try:
+        video_id = request.get("video_id")
+        start_time = request.get("start_time", 0)
+        end_time = request.get("end_time", 0)
+        
+        if not video_id:
+            raise HTTPException(status_code=400, detail="video_id is required")
+        
+        conn = sqlite3.connect('data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT filename, path FROM uploads WHERE id = ?",
+            (video_id,)
+        )
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        filename, original_path = result
+        
+        if not os.path.exists(original_path):
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        output_filename = f"range_edit_{uuid.uuid4()}.mp4"
+        output_path = os.path.join("static/uploaded_videos", output_filename)
+        
+        os.makedirs("static/uploaded_videos", exist_ok=True)
+        
+        from moviepy.editor import VideoFileClip
+        try:
+            clip = VideoFileClip(original_path)
+            if end_time > clip.duration:
+                end_time = clip.duration
+            
+            edited_clip = clip.subclip(start_time, end_time)
+            edited_clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
+            
+            clip.close()
+            edited_clip.close()
+            
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='edit_commands'")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE edit_commands (
+                        id INTEGER PRIMARY KEY,
+                        command_json TEXT,
+                        video_path TEXT,
+                        result_path TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                conn.commit()
+            
+            cursor.execute(
+                "INSERT INTO edit_commands (command_json, video_path, result_path) VALUES (?, ?, ?)",
+                (
+                    json.dumps({"type": "range_cut", "start_time": start_time, "end_time": end_time, "video_id": video_id}),
+                    original_path,
+                    output_path
+                )
+            )
+            conn.commit()
+            edit_id = cursor.lastrowid
+            conn.close()
+            
+            return {
+                "success": True,
+                "edit_id": edit_id,
+                "processed_video_url": f"/uploaded_videos/{output_filename}",
+                "start_time": start_time,
+                "end_time": end_time
+            }
+        except Exception as e:
+            logger.error(f"動画編集中にエラーが発生しました: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"動画編集中にエラーが発生しました: {str(e)}")
+    except Exception as e:
+        logger.error(f"範囲編集APIエラー: {str(e)}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": str(e)}
+
+
+@app.post("/api/generate-subtitles", response_model=dict)
+async def generate_subtitles(request: dict = Body(...)):
+    """動画にテロップを生成して適用するエンドポイント"""
+    try:
+        video_id = request.get("video_id")
+        template_id = request.get("template_id", "default")
+        
+        if not video_id:
+            raise HTTPException(status_code=400, detail="video_id is required")
+        
+        from subtitle_templates import get_template_by_id
+        template = get_template_by_id(template_id)
+        
+        conn = sqlite3.connect('data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT filename, original_path FROM uploads WHERE id = ?",
+            (video_id,)
+        )
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        filename, original_path = result
+        
+        if not os.path.exists(original_path):
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        from moviepy.editor import VideoFileClip
+        import tempfile
+        
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
+            temp_audio_path = temp_audio.name
+        
+        try:
+            video_clip = VideoFileClip(original_path)
+            video_clip.audio.write_audiofile(temp_audio_path, logger=None)
+            
+            client = OpenAI(api_key=OPENAI_API_KEY)
+            with open(temp_audio_path, "rb") as audio_file:
+                transcript_response = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    language="ja"
+                )
+            
+            transcript_text = transcript_response.text
+            
+            import re
+            sentences = re.split(r'(?<=[。．！？])', transcript_text)
+            sentences = [s for s in sentences if s.strip()]
+            
+            from moviepy.editor import TextClip, CompositeVideoClip
+            
+            output_filename = f"subtitle_{uuid.uuid4()}.mp4"
+            output_path = os.path.join("static/uploaded_videos", output_filename)
+            
+            duration = video_clip.duration
+            char_count = len(transcript_text)
+            char_per_second = char_count / duration if duration > 0 else 10
+            
+            subtitle_clips = []
+            
+            current_time = 0
+            for sentence in sentences:
+                if not sentence.strip():
+                    continue
+                
+                display_time = len(sentence) / char_per_second
+                display_time = max(2, min(display_time, 5))  # 最小2秒、最大5秒
+                
+                txt_clip = TextClip(
+                    sentence, 
+                    fontsize=template["font_size"],
+                    font=template["font"],
+                    color=template["color"],
+                    bg_color=template["bg_color"],
+                    method='caption',
+                    size=(video_clip.w * 0.9, None)
+                )
+                
+                txt_clip = txt_clip.set_position(('center', 'bottom')).set_start(current_time).set_duration(display_time)
+                subtitle_clips.append(txt_clip)
+                
+                current_time += display_time
+            
+            final_clip = CompositeVideoClip([video_clip] + subtitle_clips)
+            final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
+            
+            video_clip.close()
+            final_clip.close()
+            
+            command_data = {
+                "type": "add_subtitles", 
+                "template_id": template_id,
+                "video_id": video_id
+            }
+            
+            cursor.execute(
+                "INSERT INTO edit_commands (command_json, video_path, result_path) VALUES (?, ?, ?)",
+                (
+                    json.dumps(command_data),
+                    original_path,
+                    output_path
+                )
+            )
+            conn.commit()
+            edit_id = cursor.lastrowid
+            conn.close()
+            
+            return {
+                "success": True,
+                "edit_id": edit_id,
+                "processed_video_url": f"/uploaded_videos/{output_filename}",
+                "transcript": transcript_text
+            }
+            
+        except Exception as e:
+            logger.error(f"テロップ生成中にエラーが発生しました: {str(e)}")
+            logger.error(traceback.format_exc())
+            if os.path.exists(temp_audio_path):
+                os.unlink(temp_audio_path)
+            raise HTTPException(status_code=500, detail=f"テロップ生成中にエラーが発生しました: {str(e)}")
+        
+        finally:
+            if os.path.exists(temp_audio_path):
+                os.unlink(temp_audio_path)
+                
+    except Exception as e:
+        logger.error(f"テロップ生成APIエラー: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/suggest-bgm", response_model=dict)
+async def suggest_bgm(request: dict = Body(...)):
+    """動画内容を分析し、適切なBGMを提案するエンドポイント"""
+    try:
+        video_id = request.get("video_id")
+        
+        if not video_id:
+            raise HTTPException(status_code=400, detail="video_id is required")
+        
+        conn = sqlite3.connect('data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT filename, original_path FROM uploads WHERE id = ?",
+            (video_id,)
+        )
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video not found")
+            
+        filename, original_path = result
+        
+        if not os.path.exists(original_path):
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        from moviepy.editor import VideoFileClip
+        import tempfile
+        
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
+            temp_audio_path = temp_audio.name
+        
+        try:
+            video_clip = VideoFileClip(original_path)
+            video_clip.audio.write_audiofile(temp_audio_path, logger=None)
+            
+            client = OpenAI(api_key=OPENAI_API_KEY)
+            with open(temp_audio_path, "rb") as audio_file:
+                transcript_response = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    language="ja"
+                )
+            
+            transcript_text = transcript_response.text
+            
+            prompt = f"""
+            以下は動画の文字起こしです。この内容に最適なBGMのジャンルを提案してください。
+            
+            文字起こし:
+            {transcript_text}
+            
+            以下の形式でJSON形式で回答してください:
+            {{
+                "genre": "提案するBGMジャンル（例: アンビエント、ポップ、ロック、クラシック、ジャズなど）",
+                "reason": "このジャンルを選んだ理由（100文字程度）",
+                "mood": "動画の雰囲気（例: 明るい、落ち着いた、エネルギッシュ、感動的など）",
+                "bgm_suggestions": [
+                    {{
+                        "title": "BGMタイトル1",
+                        "description": "このBGMの特徴（50文字程度）",
+                        "url": "サンプルURL（実際のURLは後で差し替えます）"
+                    }},
+                    // 3〜5曲の候補
+                ]
+            }}
+            
+            注意: 回答はJSON形式のみで、余計な説明は不要です。
+            """
+            
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "あなたは動画内容を分析し、最適なBGMを提案する専門家です。"},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+            
+            bgm_suggestions = json.loads(response.choices[0].message.content)
+            
+            royalty_free_bgm = [
+                {
+                    "title": "Upbeat Corporate",
+                    "description": "明るく前向きな企業向けBGM",
+                    "url": "/static/bgm/upbeat_corporate.mp3",
+                    "genre": "ポップ"
+                },
+                {
+                    "title": "Inspiring Technology",
+                    "description": "テクノロジーをテーマにした未来的なBGM",
+                    "url": "/static/bgm/inspiring_technology.mp3",
+                    "genre": "エレクトロニック"
+                },
+                {
+                    "title": "Gentle Acoustic",
+                    "description": "優しいアコースティックギターのBGM",
+                    "url": "/static/bgm/gentle_acoustic.mp3",
+                    "genre": "アコースティック"
+                },
+                {
+                    "title": "Emotional Piano",
+                    "description": "感動的なピアノソロのBGM",
+                    "url": "/static/bgm/emotional_piano.mp3",
+                    "genre": "クラシック"
+                },
+                {
+                    "title": "Energetic Rock",
+                    "description": "エネルギッシュなロックBGM",
+                    "url": "/static/bgm/energetic_rock.mp3",
+                    "genre": "ロック"
+                },
+                {
+                    "title": "Relaxing Ambient",
+                    "description": "リラックスできる環境音楽",
+                    "url": "/static/bgm/relaxing_ambient.mp3",
+                    "genre": "アンビエント"
+                },
+                {
+                    "title": "Happy Ukulele",
+                    "description": "明るいウクレレのBGM",
+                    "url": "/static/bgm/happy_ukulele.mp3",
+                    "genre": "ポップ"
+                },
+                {
+                    "title": "Cinematic Orchestra",
+                    "description": "映画音楽風の壮大なオーケストラ",
+                    "url": "/static/bgm/cinematic_orchestra.mp3",
+                    "genre": "オーケストラ"
+                }
+            ]
+            
+            suggested_genre = bgm_suggestions.get("genre", "").lower()
+            matching_bgm = [bgm for bgm in royalty_free_bgm if suggested_genre in bgm["genre"].lower()]
+            
+            if len(matching_bgm) < 3:
+                remaining_bgm = [bgm for bgm in royalty_free_bgm if bgm not in matching_bgm]
+                matching_bgm.extend(remaining_bgm[:5-len(matching_bgm)])
+            
+            matching_bgm = matching_bgm[:5]
+            
+            command_data = {
+                "type": "suggest_bgm",
+                "video_id": video_id,
+                "genre": bgm_suggestions.get("genre"),
+                "mood": bgm_suggestions.get("mood")
+            }
+            
+            cursor.execute(
+                "INSERT INTO edit_commands (command_json, video_path, result_path) VALUES (?, ?, ?)",
+                (
+                    json.dumps(command_data),
+                    original_path,
+                    ""  # BGM提案は結果パスなし
+                )
+            )
+            conn.commit()
+            suggestion_id = cursor.lastrowid
+            conn.close()
+            
+            return {
+                "success": True,
+                "suggestion_id": suggestion_id,
+                "genre": bgm_suggestions.get("genre"),
+                "reason": bgm_suggestions.get("reason"),
+                "mood": bgm_suggestions.get("mood"),
+                "bgm_options": matching_bgm
+            }
+            
+        except Exception as e:
+            logger.error(f"BGM提案中にエラーが発生しました: {str(e)}")
+            logger.error(traceback.format_exc())
+            if os.path.exists(temp_audio_path):
+                os.unlink(temp_audio_path)
+            raise HTTPException(status_code=500, detail=f"BGM提案中にエラーが発生しました: {str(e)}")
+        
+        finally:
+            if os.path.exists(temp_audio_path):
+                os.unlink(temp_audio_path)
+                
+    except Exception as e:
+        logger.error(f"BGM提案APIエラー: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/apply-bgm", response_model=dict)
+async def apply_bgm(request: dict = Body(...)):
+    """選択されたBGMを動画に適用するエンドポイント"""
+    try:
+        video_id = request.get("video_id")
+        bgm_url = request.get("bgm_url")
+        volume = request.get("volume", 0.3)  # デフォルトボリューム30%
+        
+        if not video_id or not bgm_url:
+            raise HTTPException(status_code=400, detail="video_id and bgm_url are required")
+        
+        volume = max(0.1, min(float(volume), 1.0))
+        
+        conn = sqlite3.connect('data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT filename, original_path FROM uploads WHERE id = ?",
+            (video_id,)
+        )
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video not found")
+            
+        filename, original_path = result
+        
+        if not os.path.exists(original_path):
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        bgm_file_path = bgm_url.replace("/static/", "static/")
+        if not os.path.exists(bgm_file_path):
+            conn.close()
+            raise HTTPException(status_code=404, detail="BGM file not found")
+        
+        from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
+        
+        output_filename = f"bgm_{uuid.uuid4()}.mp4"
+        output_path = os.path.join("static/uploaded_videos", output_filename)
+        
+        try:
+            video_clip = VideoFileClip(original_path)
+            bgm_clip = AudioFileClip(bgm_file_path)
+            
+            if bgm_clip.duration < video_clip.duration:
+                repeats = int(video_clip.duration / bgm_clip.duration) + 1
+                bgm_extended = CompositeAudioClip([bgm_clip.set_start(i * bgm_clip.duration) for i in range(repeats)])
+                bgm_clip = bgm_extended.subclip(0, video_clip.duration)
+            else:
+                bgm_clip = bgm_clip.subclip(0, video_clip.duration)
+            
+            bgm_clip = bgm_clip.volumex(volume)
+            
+            original_audio = video_clip.audio
+            new_audio = CompositeAudioClip([original_audio, bgm_clip])
+            
+            video_with_bgm = video_clip.set_audio(new_audio)
+            
+            video_with_bgm.write_videofile(output_path, codec="libx264", audio_codec="aac")
+            
+            video_clip.close()
+            video_with_bgm.close()
+            
+            command_data = {
+                "type": "apply_bgm",
+                "video_id": video_id,
+                "bgm_url": bgm_url,
+                "volume": volume
+            }
+            
+            cursor.execute(
+                "INSERT INTO edit_commands (command_json, video_path, result_path) VALUES (?, ?, ?)",
+                (
+                    json.dumps(command_data),
+                    original_path,
+                    output_path
+                )
+            )
+            conn.commit()
+            edit_id = cursor.lastrowid
+            conn.close()
+            
+            return {
+                "success": True,
+                "edit_id": edit_id,
+                "processed_video_url": f"/uploaded_videos/{output_filename}"
+            }
+            
+        except Exception as e:
+            logger.error(f"BGM適用中にエラーが発生しました: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"BGM適用中にエラーが発生しました: {str(e)}")
+                
+    except Exception as e:
+        logger.error(f"BGM適用APIエラー: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/edit-range", response_model=dict)
+async def edit_range(request: dict = Body(...)):
+    """指定された範囲の動画を切り取るエンドポイント"""
+    try:
+        video_id = request.get("video_id")
+        start_time = request.get("start_time", 0)
+        end_time = request.get("end_time", 0)
+        
+        if not video_id:
+            raise HTTPException(status_code=400, detail="video_id is required")
+        
+        conn = sqlite3.connect('data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT filename, original_path FROM uploads WHERE id = ?",
+            (video_id,)
+        )
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        filename, original_path = result
+        
+        if not os.path.exists(original_path):
+            conn.close()
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        output_filename = f"range_edit_{uuid.uuid4()}.mp4"
+        output_path = os.path.join("static/uploaded_videos", output_filename)
+        
+        from moviepy.editor import VideoFileClip
+        try:
+            clip = VideoFileClip(original_path)
+            if end_time > clip.duration:
+                end_time = clip.duration
+            
+            edited_clip = clip.subclip(start_time, end_time)
+            edited_clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
+            
+            clip.close()
+            edited_clip.close()
+            
+            command_data = {
+                "type": "range_cut", 
+                "start_time": start_time, 
+                "end_time": end_time, 
+                "video_id": video_id
+            }
+            
+            cursor.execute(
+                "INSERT INTO edit_commands (command_json, video_path, result_path) VALUES (?, ?, ?)",
+                (
+                    json.dumps(command_data),
+                    original_path,
+                    output_path
+                )
+            )
+            conn.commit()
+            edit_id = cursor.lastrowid
+            conn.close()
+            
+            return {
+                "success": True,
+                "edit_id": edit_id,
+                "processed_video_url": f"/uploaded_videos/{output_filename}",
+                "start_time": start_time,
+                "end_time": end_time
+            }
+        except Exception as e:
+            logger.error(f"動画編集中にエラーが発生しました: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"動画編集中にエラーが発生しました: {str(e)}")
+    except Exception as e:
+        logger.error(f"範囲編集APIエラー: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/get-processed-videos", response_model=List[dict])
 async def get_processed_videos():
