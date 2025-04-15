@@ -77,8 +77,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/uploaded_videos", StaticFiles(directory="static/uploaded_videos"), name="uploaded_videos")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/uploaded_videos", StaticFiles(directory="uploaded_videos"), name="uploaded_videos")
 app.mount("/output", StaticFiles(directory="output"), name="output")
 
 @app.on_event("startup")
@@ -87,7 +87,7 @@ async def startup_event():
     try:
         logger.info("アプリケーション起動")
         
-        required_dirs = ["static", "static/uploaded_videos", "output", "uploads", "uploaded_videos"]
+        required_dirs = ["static", "app/static", "static/uploaded_videos", "output", "uploads", "uploaded_videos"]
         for directory in required_dirs:
             os.makedirs(directory, exist_ok=True)
             logger.info(f"ディレクトリ確認: {directory}")
@@ -1335,7 +1335,7 @@ async def upload_video(
         logger.info(f"動画アップロード開始: ファイル名={file.filename}, client_id={client_id}")
         logger.debug(f"パラメータ: aspect_ratio={aspect_ratio}, margin_seconds={margin_seconds}")
         
-        os.makedirs("static/uploaded_videos", exist_ok=True)
+        os.makedirs("uploaded_videos", exist_ok=True)
         
         file_extension = os.path.splitext(file.filename)[1]
         unique_filename = f"{uuid.uuid4()}{file_extension}"
@@ -2811,6 +2811,346 @@ async def edit_range(request: dict = Body(...)):
         logger.error(f"範囲編集APIエラー: {str(e)}")
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/get-processed-videos", response_model=List[dict])
+async def get_processed_videos():
+    """処理済み動画のリストを取得するエンドポイント（WebUI用）"""
+    try:
+        output_dir = "output"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        upload_dir = "uploaded_videos"
+        if not os.path.exists(upload_dir):
+            os.makedirs(upload_dir)
+        
+        conn = sqlite3.connect('data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='edit_commands'")
+        if not cursor.fetchone():
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS edit_commands (
+                id INTEGER PRIMARY KEY,
+                client_id TEXT,
+                script_id TEXT,
+                command_json TEXT,
+                video_path TEXT,
+                result_path TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+            conn.commit()
+        
+        cursor.execute("SELECT id, video_path, result_path, created_at FROM edit_commands ORDER BY created_at DESC")
+        edit_history = cursor.fetchall()
+        
+        uploaded_videos = []
+        for filename in os.listdir(upload_dir):
+            if filename.endswith(('.mp4', '.mov', '.avi', '.webm')):
+                file_path = os.path.join(upload_dir, filename)
+                uploaded_videos.append({
+                    "id": f"upload_{filename}",
+                    "name": filename,
+                    "path": file_path,
+                    "type": "uploaded",
+                    "created_at": datetime.fromtimestamp(os.path.getctime(file_path)).isoformat()
+                })
+        
+        processed_videos = []
+        for filename in os.listdir(output_dir):
+            if filename.endswith(('.mp4', '.mov', '.avi', '.webm')):
+                file_path = os.path.join(output_dir, filename)
+                processed_videos.append({
+                    "id": f"output_{filename}",
+                    "name": filename,
+                    "path": file_path,
+                    "type": "processed",
+                    "created_at": datetime.fromtimestamp(os.path.getctime(file_path)).isoformat()
+                })
+        
+        history_videos = []
+        for record in edit_history:
+            id, video_path, result_path, created_at = record
+            if os.path.exists(result_path):
+                history_videos.append({
+                    "id": f"history_{id}",
+                    "name": os.path.basename(result_path),
+                    "path": result_path,
+                    "original_path": video_path,
+                    "type": "edited",
+                    "created_at": created_at
+                })
+        
+        all_videos = uploaded_videos + processed_videos + history_videos
+        
+        all_videos.sort(key=lambda x: x["created_at"], reverse=True)
+        
+        conn.close()
+        return all_videos
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"動画リストの取得に失敗しました: {str(e)}")
+
+@app.get("/api/generate-shooting-instructions", response_model=dict)
+async def api_generate_shooting_instructions(
+    proposalId: int,
+    conn: sqlite3.Connection = Depends(get_data_db)
+):
+    """撮影指示書を生成するAPIエンドポイント（クライアントワークフロー用）"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT client_id FROM script_proposals WHERE id = ?",
+            (proposalId,)
+        )
+        proposal = cursor.fetchone()
+        
+        if not proposal:
+            return {"success": False, "message": "台本提案が見つかりません"}
+        
+        client_id = proposal[0]
+        instructions = generate_shooting_instructions(client_id, proposalId)
+        instruction_id = store_shooting_instructions(client_id, proposalId, instructions)
+        
+        return {"success": True, "instruction_id": instruction_id, "instructions": instructions}
+    except Exception as e:
+        return {"success": False, "message": f"撮影指示書の生成中にエラーが発生しました: {str(e)}"}
+
+@app.post("/api/upload-video", response_model=dict)
+async def api_upload_video(
+    file: UploadFile = File(...),
+    client_id: int = Form(...),
+    aspect_ratio: str = Form("16:9"),
+    margin_seconds: float = Form(0.5),
+    conn: sqlite3.Connection = Depends(get_data_db)
+):
+    """動画をアップロードするAPIエンドポイント（クライアントワークフロー用）"""
+    return await upload_video(file, client_id, aspect_ratio, margin_seconds, conn)
+
+@app.post("/upload_video/", response_model=dict)
+async def upload_video_endpoint(
+    file: UploadFile = File(...),
+    client_id: int = Form(...),
+    aspect_ratio: str = Form("16:9"),
+    margin_seconds: float = Form(0.5),
+    conn: sqlite3.Connection = Depends(get_data_db)
+):
+    """動画をアップロードするAPIエンドポイント（音声編集UI用）"""
+    return await upload_video(file, client_id, aspect_ratio, margin_seconds, conn)
+
+class TranscribeRequest(BaseModel):
+    audio_base64: str
+
+class EditCommandRequest(BaseModel):
+    text: str
+    video_metadata: Optional[dict] = None
+
+class ProcessEditRequest(BaseModel):
+    client_id: Optional[int] = None
+    script_id: Optional[int] = None
+    command_json: str
+    video_path: str
+
+@app.post("/api/transcribe-audio", response_model=dict)
+async def transcribe_audio(
+    audio: UploadFile = File(...),
+    client_id: str = Form(...)
+):
+    """音声をWhisper APIで文字起こしするエンドポイント"""
+    temp_file_path = None
+    try:
+        import tempfile
+        import uuid
+        
+        audio_content = await audio.read()
+        
+        temp_file_path = f"/tmp/{uuid.uuid4()}.wav"
+        with open(temp_file_path, "wb") as f:
+            f.write(audio_content)
+        
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from voice_edit_agent.voice_input import VoiceInput
+        
+        voice_input = VoiceInput()
+        transcript = voice_input.transcribe_from_file(temp_file_path)
+        
+        logger.info(f"音声文字起こし成功: client_id={client_id}, transcript={transcript[:50]}...")
+        
+        return {"success": True, "text": transcript, "transcript": transcript}
+    except Exception as e:
+        logger.error(f"音声の文字起こしに失敗しました: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"音声の文字起こしに失敗しました: {str(e)}")
+    finally:
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except Exception as e:
+                logger.error(f"一時ファイルの削除に失敗しました: {str(e)}")
+
+@app.post("/api/voice-to-text", response_model=dict)
+async def voice_to_text(audio_file: UploadFile = File(...)):
+    """音声ファイルをWhisper APIで文字起こしするエンドポイント（WebUI用）"""
+    try:
+        temp_file_path = f"/tmp/{uuid.uuid4()}.wav"
+        with open(temp_file_path, "wb") as f:
+            f.write(await audio_file.read())
+        
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from voice_edit_agent.voice_input import VoiceInput
+        
+        voice_input = VoiceInput()
+        text = voice_input.transcribe_from_file(temp_file_path)
+        
+        os.unlink(temp_file_path)
+        
+        return {"text": text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"音声の文字起こしに失敗しました: {str(e)}")
+
+@app.post("/api/natural-edit", response_model=dict)
+async def natural_edit(request: EditCommandRequest):
+    """自然言語を編集コマンドに変換するエンドポイント"""
+    try:
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from voice_edit_agent.natural_edit_agent import NaturalEditAgent
+        
+        agent = NaturalEditAgent()
+        edit_commands = agent.convert_to_edit_commands(request.text, request.video_metadata)
+        validated_commands = agent.validate_commands(edit_commands, request.video_metadata.get("duration") if request.video_metadata else None)
+        
+        return {"success": True, "commands": validated_commands}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"編集コマンドの生成に失敗しました: {str(e)}")
+
+class TextToEditCommandRequest(BaseModel):
+    text: str
+    video_id: Optional[str] = None
+    video_metadata: Optional[dict] = None
+
+@app.post("/api/text-to-edit-commands", response_model=dict)
+async def text_to_edit_commands(request: TextToEditCommandRequest = Body(...)):
+    """テキストを編集コマンドに変換するエンドポイント（WebUI用）"""
+    try:
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from voice_edit_agent.natural_edit_agent import NaturalEditAgent
+        import traceback
+        
+        video_metadata = request.video_metadata if request.video_metadata is not None else {}
+        
+        if request.video_id and (not video_metadata or video_metadata == {}):
+            video_metadata = {"duration": 60.0, "resolution": "1920x1080"}
+        
+        agent = NaturalEditAgent()
+        edit_commands = agent.convert_to_edit_commands(request.text, video_metadata)
+        validated_commands = agent.validate_commands(edit_commands, video_metadata.get("duration") if video_metadata else None)
+        
+        return {"commands": validated_commands}
+    except Exception as e:
+        logger.error(f"編集コマンド生成エラー: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"編集コマンドの生成に失敗しました: {str(e)}")
+
+@app.post("/api/process-edit", response_model=dict)
+async def process_edit(request: ProcessEditRequest):
+    """編集コマンドを適用して動画を処理するエンドポイント"""
+    try:
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from voice_edit_agent.apply_edit_commands import EditCommandProcessor
+        
+        processor = EditCommandProcessor()
+        result_path = processor.process_commands(
+            json.loads(request.command_json), 
+            request.video_path,
+            client_id=request.client_id,
+            script_id=request.script_id
+        )
+        
+        if request.client_id:
+            conn = sqlite3.connect('data.db')
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO edit_commands (client_id, script_id, command_json, video_path, result_path) VALUES (?, ?, ?, ?, ?)",
+                (request.client_id, request.script_id, request.command_json, request.video_path, result_path)
+            )
+            conn.commit()
+            conn.close()
+        
+        return {
+            "success": True, 
+            "result_path": result_path,
+            "download_url": f"/static/output/{os.path.basename(result_path)}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"動画の編集に失敗しました: {str(e)}")
+
+@app.post("/api/apply-edit-commands", response_model=dict)
+async def apply_edit_commands(request: dict = Body(...)):
+    """編集コマンドを適用して動画を処理するエンドポイント（WebUI用）"""
+    try:
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from voice_edit_agent.apply_edit_commands import EditCommandProcessor
+        
+        processor = EditCommandProcessor()
+        result_path = processor.process_commands(
+            request["command_json"], 
+            request["video_path"],
+            client_id=request.get("client_id"),
+            script_id=request.get("script_id")
+        )
+        
+        if request.get("client_id"):
+            conn = sqlite3.connect('data.db')
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO edit_commands (client_id, script_id, command_json, video_path, result_path) VALUES (?, ?, ?, ?, ?)",
+                (request.get("client_id"), request.get("script_id"), json.dumps(request["command_json"]), request["video_path"], result_path)
+            )
+            conn.commit()
+            conn.close()
+        
+        return {
+            "success": True, 
+            "result_path": result_path,
+            "download_url": f"/static/output/{os.path.basename(result_path)}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"動画の編集に失敗しました: {str(e)}")
+
+@app.get("/api/edit-commands", response_model=list)
+async def get_edit_commands(client_id: Optional[int] = None):
+    """クライアントの編集コマンド履歴を取得するエンドポイント"""
+    try:
+        conn = sqlite3.connect('data.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        if client_id:
+            cursor.execute("SELECT * FROM edit_commands WHERE client_id = ? ORDER BY created_at DESC", (client_id,))
+        else:
+            cursor.execute("SELECT * FROM edit_commands ORDER BY created_at DESC")
+        
+        commands = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return commands
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"編集コマンドの取得に失敗しました: {str(e)}")
+
+@app.get("/edit-ui")
+async def edit_ui():
+    """音声編集UIページを表示するエンドポイント"""
+    return RedirectResponse("/static/edit_ui/index.html")
+
+@app.get("/static/edit_ui/index.html")
+async def edit_ui_static():
+    """音声編集UIの静的ファイルを表示するエンドポイント"""
+    return FileResponse("app/static/edit_ui/index.html")
+
+@app.get("/edit_ui/index.html")
+async def edit_ui_redirect():
+    """音声編集UIページへのリダイレクト（誤ったパス対応）"""
+    return RedirectResponse("/static/edit_ui/index.html")
 
 @app.get("/api/get-processed-videos", response_model=List[dict])
 async def get_processed_videos():
