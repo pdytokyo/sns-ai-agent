@@ -41,6 +41,7 @@ ENV/
 .env.production.local
 
 # Large files and directories
+*.MP4
 *.mp4
 *.wav
 *.mp3
