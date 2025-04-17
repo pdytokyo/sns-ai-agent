@@ -123,12 +123,23 @@ elif menu == "Clients":
             users = session.exec(text("SELECT id, username FROM user ORDER BY username")).all()
             user_options = {user[0]: user[1] for user in users}
             
-            clients = session.exec(text("""
-                SELECT c.id, c.name, c.industry, u.username, c.created_at
-                FROM client c
-                JOIN user u ON c.user_id = u.id
-                ORDER BY c.created_at DESC
-            """)).all()
+            response = httpx.get(f"{API_URL}/client/", headers={"X-User-ID": "admin"})
+            if response.status_code != 200:
+                raise Exception(f"API error: {response.text}")
+                
+            clients_data = response.json()
+            clients = []
+            
+            for client_data in clients_data:
+                user = session.exec(text(f"SELECT username FROM user WHERE id = {client_data['user_id']}")).first()
+                username = user[0] if user else "Unknown"
+                clients.append((
+                    client_data["id"], 
+                    client_data["name"], 
+                    client_data.get("industry"), 
+                    username,
+                    client_data["created_at"]
+                ))
             
             client_data = []
             if clients:
@@ -149,12 +160,25 @@ elif menu == "Clients":
                     selected_client_id = st.selectbox("Select Client", [c["ID"] for c in client_data], key="list_client_select")
                     
                     if selected_client_id:
-                        client = session.exec(text(f"""
-                            SELECT c.id, c.name, c.industry, c.target_audience, c.created_at, u.username
-                            FROM client c
-                            JOIN user u ON c.user_id = u.id
-                            WHERE c.id = {selected_client_id}
-                        """)).first()
+                        response = httpx.get(
+                            f"{API_URL}/client/{selected_client_id}", 
+                            headers={"X-User-ID": "admin"}
+                        )
+                        if response.status_code != 200:
+                            raise Exception(f"API error: {response.text}")
+                            
+                        client_data = response.json()
+                        user = session.exec(text(f"SELECT username FROM user WHERE id = {client_data['user_id']}")).first()
+                        username = user[0] if user else "Unknown"
+                        
+                        client = (
+                            client_data["id"],
+                            client_data["name"],
+                            client_data.get("industry"),
+                            json.dumps(client_data.get("target_audience", {})),
+                            client_data["created_at"],
+                            username
+                        )
                         
                         if client:
                             col1, col2 = st.columns(2)
@@ -231,12 +255,18 @@ elif menu == "Clients":
                             try:
                                 target_audience = json.loads(target_audience_json) if target_audience_json else {}
                                 
-                                session.exec(text(f"""
-                                    INSERT INTO client (name, industry, target_audience, user_id, created_at, updated_at)
-                                    VALUES ('{name}', '{industry}', '{json.dumps(target_audience)}', {user_id}, 
-                                    datetime('now'), datetime('now'))
-                                """))
-                                session.commit()
+                                response = httpx.post(
+                                    f"{API_URL}/client/",
+                                    json={
+                                        "name": name,
+                                        "industry": industry,
+                                        "target_audience": target_audience,
+                                    },
+                                    headers={"X-User-ID": str(user_id)}
+                                )
+                                
+                                if response.status_code != 200:
+                                    raise Exception(f"API error: {response.text}")
                                 
                                 st.success(f"Client '{name}' added successfully!")
                                 st.experimental_rerun()
@@ -255,11 +285,22 @@ elif menu == "Clients":
                                                 key="edit_client_select")
                     
                     if edit_client_id:
-                        client = session.exec(text(f"""
-                            SELECT c.id, c.name, c.industry, c.target_audience, c.user_id
-                            FROM client c
-                            WHERE c.id = {edit_client_id}
-                        """)).first()
+                        response = httpx.get(
+                            f"{API_URL}/client/{edit_client_id}", 
+                            headers={"X-User-ID": "admin"}
+                        )
+                        if response.status_code != 200:
+                            raise Exception(f"API error: {response.text}")
+                            
+                        client_data = response.json()
+                        
+                        client = (
+                            client_data["id"],
+                            client_data["name"],
+                            client_data.get("industry"),
+                            json.dumps(client_data.get("target_audience", {})),
+                            client_data["user_id"]
+                        )
                         
                         if client:
                             with st.form("edit_client_form"):
@@ -292,16 +333,18 @@ elif menu == "Clients":
                                         try:
                                             target_audience = json.loads(edit_target_audience_json) if edit_target_audience_json else {}
                                             
-                                            session.exec(text(f"""
-                                                UPDATE client
-                                                SET name = '{edit_name}', 
-                                                    industry = '{edit_industry}', 
-                                                    target_audience = '{json.dumps(target_audience)}',
-                                                    user_id = {edit_user_id},
-                                                    updated_at = datetime('now')
-                                                WHERE id = {edit_client_id}
-                                            """))
-                                            session.commit()
+                                            response = httpx.put(
+                                                f"{API_URL}/client/{edit_client_id}",
+                                                json={
+                                                    "name": edit_name,
+                                                    "industry": edit_industry,
+                                                    "target_audience": target_audience,
+                                                },
+                                                headers={"X-User-ID": str(edit_user_id)}
+                                            )
+                                            
+                                            if response.status_code != 200:
+                                                raise Exception(f"API error: {response.text}")
                                             
                                             st.success(f"Client '{edit_name}' updated successfully!")
                                             st.experimental_rerun()
@@ -335,8 +378,13 @@ elif menu == "Clients":
                         else:
                             if st.button("Confirm Delete", key="confirm_delete"):
                                 try:
-                                    session.exec(text(f"DELETE FROM client WHERE id = {delete_client_id}"))
-                                    session.commit()
+                                    response = httpx.delete(
+                                        f"{API_URL}/client/{delete_client_id}",
+                                        headers={"X-User-ID": "admin"}  # Admin access required for deletion
+                                    )
+                                    
+                                    if response.status_code != 204:
+                                        raise Exception(f"API error: {response.text}")
                                     
                                     st.success(f"Client '{client_name}' deleted successfully!")
                                     st.experimental_rerun()
