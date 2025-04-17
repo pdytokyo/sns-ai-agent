@@ -7,6 +7,7 @@ import json
 from datetime import datetime, timedelta
 import sqlite3
 from sqlmodel import Session, select, SQLModel, create_engine
+from sqlalchemy import text, func
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -59,17 +60,17 @@ if menu == "Dashboard":
     
     try:
         with get_db_connection() as session:
-            user_count = session.exec("SELECT COUNT(*) FROM user").first()[0]
+            user_count = session.exec(text("SELECT COUNT(*) FROM user")).first()[0]
             
-            client_count = session.exec("SELECT COUNT(*) FROM client").first()[0]
+            client_count = session.exec(text("SELECT COUNT(*) FROM client")).first()[0]
             
-            video_count = session.exec("SELECT COUNT(*) FROM video").first()[0]
-            processed_video_count = session.exec("SELECT COUNT(*) FROM video WHERE processed = 1").first()[0]
+            video_count = session.exec(text("SELECT COUNT(*) FROM video")).first()[0]
+            processed_video_count = session.exec(text("SELECT COUNT(*) FROM video WHERE processed = 1")).first()[0]
             
-            post_count = session.exec("SELECT COUNT(*) FROM post").first()[0]
-            posted_count = session.exec("SELECT COUNT(*) FROM post WHERE posted = 1").first()[0]
+            post_count = session.exec(text("SELECT COUNT(*) FROM post")).first()[0]
+            posted_count = session.exec(text("SELECT COUNT(*) FROM post WHERE posted = 1")).first()[0]
             
-            failed_job_count = session.exec("SELECT COUNT(*) FROM job_log WHERE status = 'failed'").first()[0]
+            failed_job_count = session.exec(text("SELECT COUNT(*) FROM job_log WHERE status = 'failed'")).first()[0]
         
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -88,12 +89,12 @@ if menu == "Dashboard":
         st.subheader("Recent Activity")
         
         with get_db_connection() as session:
-            recent_logs = session.exec("""
+            recent_logs = session.exec(text("""
                 SELECT job_type, status, error_message, created_at 
                 FROM job_log 
                 ORDER BY created_at DESC 
                 LIMIT 5
-            """).all()
+            """)).all()
             
             if recent_logs:
                 log_data = []
@@ -117,12 +118,12 @@ elif menu == "Clients":
     
     try:
         with get_db_connection() as session:
-            clients = session.exec("""
+            clients = session.exec(text("""
                 SELECT c.id, c.name, c.industry, u.username, c.created_at
                 FROM client c
                 JOIN user u ON c.user_id = u.id
                 ORDER BY c.created_at DESC
-            """).all()
+            """)).all()
             
             if clients:
                 client_data = []
@@ -141,12 +142,12 @@ elif menu == "Clients":
                 selected_client_id = st.selectbox("Select Client", [c["ID"] for c in client_data])
                 
                 if selected_client_id:
-                    client = session.exec(f"""
+                    client = session.exec(text(f"""
                         SELECT c.id, c.name, c.industry, c.target_audience, c.created_at, u.username
                         FROM client c
                         JOIN user u ON c.user_id = u.id
                         WHERE c.id = {selected_client_id}
-                    """).first()
+                    """)).first()
                     
                     if client:
                         col1, col2 = st.columns(2)
@@ -166,23 +167,23 @@ elif menu == "Clients":
                         
                         st.subheader("Client Statistics")
                         
-                        videos = session.exec(f"""
+                        videos = session.exec(text(f"""
                             SELECT COUNT(*), SUM(CASE WHEN processed = 1 THEN 1 ELSE 0 END)
                             FROM video
                             WHERE client_id = {selected_client_id}
-                        """).first()
+                        """)).first()
                         
-                        posts = session.exec(f"""
+                        posts = session.exec(text(f"""
                             SELECT COUNT(*), SUM(CASE WHEN posted = 1 THEN 1 ELSE 0 END)
                             FROM post
                             WHERE client_id = {selected_client_id}
-                        """).first()
+                        """)).first()
                         
-                        failed_jobs = session.exec(f"""
+                        failed_jobs = session.exec(text(f"""
                             SELECT COUNT(*)
                             FROM job_log
                             WHERE client_id = {selected_client_id} AND status = 'failed'
-                        """).first()
+                        """)).first()
                         
                         col1, col2, col3 = st.columns(3)
                         with col1:
@@ -206,7 +207,7 @@ elif menu == "Failed Jobs":
     
     try:
         with get_db_connection() as session:
-            failed_jobs = session.exec("""
+            failed_jobs = session.exec(text("""
                 SELECT j.id, j.job_type, j.error_message, j.created_at, 
                        c.name as client_name, u.username as user_name
                 FROM job_log j
@@ -214,7 +215,7 @@ elif menu == "Failed Jobs":
                 LEFT JOIN user u ON j.user_id = u.id
                 WHERE j.status = 'failed'
                 ORDER BY j.created_at DESC
-            """).all()
+            """)).all()
             
             if failed_jobs:
                 job_data = []
@@ -285,29 +286,29 @@ elif menu == "Usage Charts":
             end_datetime = datetime.combine(end_date, datetime.max.time())
             
             with get_db_connection() as session:
-                videos_by_day = session.exec(f"""
+                videos_by_day = session.exec(text(f"""
                     SELECT date(created_at) as day, COUNT(*) as count
                     FROM video
                     WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
                     GROUP BY day
                     ORDER BY day
-                """).all()
+                """)).all()
                 
-                posts_by_day = session.exec(f"""
+                posts_by_day = session.exec(text(f"""
                     SELECT date(created_at) as day, COUNT(*) as count
                     FROM post
                     WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
                     GROUP BY day
                     ORDER BY day
-                """).all()
+                """)).all()
                 
-                jobs_by_day = session.exec(f"""
+                jobs_by_day = session.exec(text(f"""
                     SELECT date(created_at) as day, status, COUNT(*) as count
                     FROM job_log
                     WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
                     GROUP BY day, status
                     ORDER BY day
-                """).all()
+                """)).all()
                 
                 if videos_by_day:
                     videos_df = pd.DataFrame(videos_by_day, columns=["day", "count"])
@@ -339,13 +340,13 @@ elif menu == "Usage Charts":
                 else:
                     st.info("No job data available for the selected period")
                 
-                job_types = session.exec(f"""
+                job_types = session.exec(text(f"""
                     SELECT job_type, COUNT(*) as count
                     FROM job_log
                     WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
                     GROUP BY job_type
                     ORDER BY count DESC
-                """).all()
+                """)).all()
                 
                 if job_types:
                     job_types_df = pd.DataFrame(job_types, columns=["job_type", "count"])
