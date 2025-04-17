@@ -53,7 +53,7 @@ with st.sidebar:
                     if response.status_code == 200:
                         token_data = response.json()
                         st.session_state["jwt"] = token_data["access_token"]
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.error("Login failed. Please check your credentials.")
                 except Exception as e:
@@ -61,7 +61,7 @@ with st.sidebar:
     else:
         if st.button("Logout"):
             st.session_state["jwt"] = None
-            st.experimental_rerun()
+            st.rerun()
         
         st.success("Logged in successfully")
     
@@ -323,7 +323,7 @@ elif menu == "Clients":
                                     raise Exception(f"API error: {response.text}")
                                 
                                 st.success(f"Client '{name}' added successfully!")
-                                st.experimental_rerun()
+                                st.rerun()
                             except json.JSONDecodeError:
                                 st.error("Invalid JSON format for target audience")
                             except Exception as e:
@@ -403,7 +403,7 @@ elif menu == "Clients":
                                                 raise Exception(f"API error: {response.text}")
                                             
                                             st.success(f"Client '{edit_name}' updated successfully!")
-                                            st.experimental_rerun()
+                                            st.rerun()
                                         except json.JSONDecodeError:
                                             st.error("Invalid JSON format for target audience")
                                         except Exception as e:
@@ -444,7 +444,7 @@ elif menu == "Clients":
                                         raise Exception(f"API error: {response.text}")
                                     
                                     st.success(f"Client '{client_name}' deleted successfully!")
-                                    st.experimental_rerun()
+                                    st.rerun()
                                 except Exception as e:
                                     st.error(f"Error deleting client: {str(e)}")
                 else:
