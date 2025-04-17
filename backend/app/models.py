@@ -18,6 +18,7 @@ class User(UserBase, table=True):
     
     clients: List["Client"] = Relationship(back_populates="user")
     tokens: List["Token"] = Relationship(back_populates="user")
+    job_logs: List["JobLog"] = Relationship(back_populates="user")
 
 class UserCreate(UserBase):
     password: str
@@ -65,6 +66,7 @@ class Client(ClientBase, table=True):
     posts: List["Post"] = Relationship(back_populates="client")
     scripts: List["Script"] = Relationship(back_populates="client")
     reports: List["Report"] = Relationship(back_populates="client")
+    job_logs: List["JobLog"] = Relationship(back_populates="client")
 
 class ClientCreate(ClientBase):
     pass
@@ -178,8 +180,8 @@ class JobLog(SQLModel, table=True):
     user_id: Optional[int] = Field(default=None, foreign_key="user.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
-    client: Optional[Client] = Relationship()
-    user: Optional[User] = Relationship()
+    client: Optional[Client] = Relationship(back_populates="job_logs")
+    user: Optional[User] = Relationship(back_populates="job_logs")
 
 class JobLogCreate(SQLModel):
     job_type: str

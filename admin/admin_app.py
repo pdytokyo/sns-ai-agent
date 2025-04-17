@@ -104,9 +104,22 @@ if menu == "Dashboard":
             post_count = session.exec(text("SELECT COUNT(*) FROM post")).first()[0]
             posted_count = session.exec(text("SELECT COUNT(*) FROM post WHERE posted = 1")).first()[0]
             
-            failed_job_count = session.exec(text("SELECT COUNT(*) FROM job_log WHERE status = 'failed'")).first()[0]
+            total_jobs = session.exec(text("SELECT COUNT(*) FROM job_log")).first()[0]
+            failed_jobs = session.exec(text("SELECT COUNT(*) FROM job_log WHERE status = 'failed'")).first()[0]
+            success_jobs = total_jobs - failed_jobs
+            
+            client_job_stats = {}
+            if st.session_state["jwt"] is not None:
+                headers = {"Authorization": f"Bearer {st.session_state['jwt']}"}
+                try:
+                    response = httpx.get(f"{API_URL}/admin/stats", headers=headers)
+                    if response.status_code == 200:
+                        stats_data = response.json()
+                        client_job_stats = stats_data.get("per_client", {})
+                except Exception as e:
+                    st.warning(f"Could not fetch client job statistics: {str(e)}")
         
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Total Users", user_count)
             st.metric("Total Clients", client_count)
@@ -118,7 +131,31 @@ if menu == "Dashboard":
         with col3:
             st.metric("Total Posts", post_count)
             st.metric("Posted", f"{posted_count} ({posted_count/post_count*100:.1f}%)" if post_count > 0 else "0 (0.0%)")
-            st.metric("Failed Jobs", failed_job_count, delta=failed_job_count, delta_color="inverse")
+        
+        with col4:
+            st.metric("Total Jobs", total_jobs)
+            st.metric("Success Rate", f"{success_jobs} ({success_jobs/total_jobs*100:.1f}%)" if total_jobs > 0 else "0 (0.0%)")
+            st.metric("Failed Jobs", failed_jobs, delta=failed_jobs, delta_color="inverse")
+            
+        if client_job_stats:
+            st.subheader("Client Job Statistics")
+            client_stats_data = []
+            
+            for client_id, stats in client_job_stats.items():
+                client_name = stats.get("name", f"Client {client_id}")
+                total = stats.get("total", 0)
+                failed = stats.get("failed", 0)
+                success_rate = (total - failed) / total * 100 if total > 0 else 0
+                
+                client_stats_data.append({
+                    "Client": client_name,
+                    "Total Jobs": total,
+                    "Failed Jobs": failed,
+                    "Success Rate": f"{success_rate:.1f}%"
+                })
+            
+            if client_stats_data:
+                st.dataframe(pd.DataFrame(client_stats_data), use_container_width=True)
         
         st.subheader("Recent Activity")
         
