@@ -64,6 +64,7 @@ class Client(ClientBase, table=True):
     videos: List["Video"] = Relationship(back_populates="client")
     posts: List["Post"] = Relationship(back_populates="client")
     scripts: List["Script"] = Relationship(back_populates="client")
+    reports: List["Report"] = Relationship(back_populates="client")
 
 class ClientCreate(ClientBase):
     pass
@@ -167,8 +168,6 @@ class ReportRead(ReportBase):
     id: int
     client_id: int
     created_at: datetime
-
-Client.reports: List[Report] = Relationship(back_populates="client")
 
 class JobLog(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
