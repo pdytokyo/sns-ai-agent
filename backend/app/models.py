@@ -43,7 +43,7 @@ class TokenData(SQLModel):
 class ClientBase(SQLModel):
     name: str
     industry: Optional[str] = None
-    target_audience: Optional[str] = Field(default=None, sa_column=Column(JSON))
+    target_audience: Optional[dict] = Field(default=None, sa_column=Column(JSON))
     
     @validator("target_audience", pre=True)
     def validate_target_audience(cls, v):
