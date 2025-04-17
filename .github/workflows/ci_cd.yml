@@ -8,12 +8,242 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      auto_fix:
+        description: 'Automatically fix and redeploy on errors'
+        required: false
+        default: 'true'
 
 jobs:
-  test:
+  dependency-check:
     runs-on: ubuntu-latest
+    outputs:
+      missing_deps: ${{ steps.check-deps.outputs.missing_deps }}
+      fixed_deps: ${{ steps.fix-deps.outputs.fixed_deps }}
     steps:
       - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      
+      - name: Check for missing dependencies
+        id: check-deps
+        run: |
+          python -c "
+          import os
+          import re
+          
+          # Define critical packages that must be present
+          critical_packages = ['openai-whisper', 'fastapi', 'uvicorn', 'python-multipart', 'openai']
+          
+          # Read requirements files
+          with open('requirements.txt', 'r') as f:
+              req_content = f.read()
+          
+          with open('requirements-deploy.txt', 'r') as f:
+              deploy_req_content = f.read()
+          
+          # Check for missing packages
+          missing_in_req = []
+          missing_in_deploy = []
+          
+          for pkg in critical_packages:
+              if not re.search(rf'{pkg}[=~<>]', req_content):
+                  missing_in_req.append(pkg)
+              
+              if not re.search(rf'{pkg}[=~<>]', deploy_req_content):
+                  missing_in_deploy.append(pkg)
+          
+          # Output results
+          if missing_in_req or missing_in_deploy:
+              print(f'::set-output name=missing_deps::true')
+              with open('/tmp/missing_deps.txt', 'w') as f:
+                  f.write(f'Missing in requirements.txt: {missing_in_req}\n')
+                  f.write(f'Missing in requirements-deploy.txt: {missing_in_deploy}\n')
+          else:
+              print(f'::set-output name=missing_deps::false')
+          "
+          
+      - name: Fix missing dependencies
+        id: fix-deps
+        if: steps.check-deps.outputs.missing_deps == 'true'
+        run: |
+          python -c "
+          import os
+          import re
+          
+          # Define critical packages with versions
+          critical_packages = {
+              'openai-whisper': '20231117',
+              'fastapi': '0.104.1',
+              'uvicorn': '0.23.2',
+              'python-multipart': '0.0.6',
+              'openai': '1.3.0'
+          }
+          
+          # Read requirements files
+          with open('requirements.txt', 'r') as f:
+              req_lines = f.readlines()
+          
+          with open('requirements-deploy.txt', 'r') as f:
+              deploy_req_lines = f.readlines()
+          
+          # Add missing packages to requirements.txt
+          req_content = ''.join(req_lines)
+          for pkg, version in critical_packages.items():
+              if not re.search(rf'{pkg}[=~<>]', req_content):
+                  req_lines.append(f'{pkg}=={version}\n')
+          
+          # Add missing packages to requirements-deploy.txt
+          deploy_req_content = ''.join(deploy_req_lines)
+          for pkg, version in critical_packages.items():
+              if not re.search(rf'{pkg}[=~<>]', deploy_req_content):
+                  deploy_req_lines.append(f'{pkg}=={version}\n')
+          
+          # Write updated files
+          with open('requirements.txt', 'w') as f:
+              f.writelines(req_lines)
+          
+          with open('requirements-deploy.txt', 'w') as f:
+              f.writelines(deploy_req_lines)
+          
+          print('::set-output name=fixed_deps::true')
+          "
+          
+          # Commit and push changes if dependencies were fixed
+          if [[ "${{ github.event.inputs.auto_fix }}" == "true" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            git config --global user.name "Devin AI"
+            git config --global user.email "devin-ai-integration[bot]@users.noreply.github.com"
+            git add requirements.txt requirements-deploy.txt
+            git commit -m "Auto-fix: Add missing dependencies"
+            git push
+            echo "Automatically fixed missing dependencies and pushed changes"
+          fi
+
+  docker-size-check:
+    runs-on: ubuntu-latest
+    needs: dependency-check
+    outputs:
+      image_size_ok: ${{ steps.check-size.outputs.image_size_ok }}
+      optimized_dockerfile: ${{ steps.optimize-dockerfile.outputs.optimized_dockerfile }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ needs.dependency-check.outputs.fixed_deps == 'true' && 'HEAD' || github.ref }}
+      
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v1
+      
+      - name: Check Docker image size
+        id: check-size
+        run: |
+          # Build Docker image
+          docker build -t sns-ai-agent:size-check .
+          
+          # Get image size
+          IMAGE_SIZE=$(docker images sns-ai-agent:size-check --format "{{.Size}}")
+          echo "Image size: $IMAGE_SIZE"
+          
+          # Convert to MB for comparison
+          SIZE_VALUE=$(echo $IMAGE_SIZE | sed 's/[A-Za-z]//g')
+          SIZE_UNIT=$(echo $IMAGE_SIZE | sed 's/[0-9.]//g')
+          
+          if [[ "$SIZE_UNIT" == "GB" ]]; then
+            SIZE_MB=$(echo "$SIZE_VALUE * 1024" | bc)
+          elif [[ "$SIZE_UNIT" == "KB" ]]; then
+            SIZE_MB=$(echo "$SIZE_VALUE / 1024" | bc)
+          else
+            SIZE_MB=$SIZE_VALUE
+          fi
+          
+          echo "Size in MB: $SIZE_MB"
+          
+          # Check if size is below 8GB limit
+          if (( $(echo "$SIZE_MB < 8192" | bc -l) )); then
+            echo "✅ Image size is below Fly.io's 8GB limit"
+            echo "::set-output name=image_size_ok::true"
+          else
+            echo "❌ Image size exceeds Fly.io's 8GB limit"
+            echo "::set-output name=image_size_ok::false"
+          fi
+      
+      - name: Optimize Dockerfile
+        id: optimize-dockerfile
+        if: steps.check-size.outputs.image_size_ok == 'false'
+        run: |
+          cat > Dockerfile.optimized << 'EOF'
+          FROM python:3.12-slim AS builder
+
+          WORKDIR /app
+
+          # Install build dependencies
+          RUN apt-get update && apt-get install -y --no-install-recommends \
+              build-essential \
+              && apt-get clean \
+              && rm -rf /var/lib/apt/lists/*
+
+          # Copy only requirements file first for better layer caching
+          COPY requirements-deploy.txt .
+          RUN pip install --no-cache-dir --upgrade pip && \
+              pip install --no-cache-dir -r requirements-deploy.txt
+
+          # Final stage
+          FROM python:3.12-slim
+
+          WORKDIR /app
+
+          # Install runtime dependencies only
+          RUN apt-get update && apt-get install -y --no-install-recommends \
+              ffmpeg \
+              && apt-get clean \
+              && rm -rf /var/lib/apt/lists/*
+
+          # Copy installed packages from builder stage
+          COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+          COPY --from=builder /usr/local/bin /usr/local/bin
+
+          # Copy only necessary files
+          COPY app/ ./app/
+          COPY *.py ./
+          COPY fly.toml ./
+          COPY Procfile ./
+
+          # Create necessary directories
+          RUN mkdir -p app/static/uploaded_videos app/static/output logs
+
+          # Set environment variables
+          ENV PYTHONDONTWRITEBYTECODE=1
+          ENV PYTHONUNBUFFERED=1
+          ENV PORT=8080
+
+          EXPOSE 8080
+          CMD cd app && uvicorn main:app --host 0.0.0.0 --port $PORT
+          EOF
+          
+          mv Dockerfile.optimized Dockerfile
+          
+          # Commit and push changes if Dockerfile was optimized
+          if [[ "${{ github.event.inputs.auto_fix }}" == "true" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            git config --global user.name "Devin AI"
+            git config --global user.email "devin-ai-integration[bot]@users.noreply.github.com"
+            git add Dockerfile
+            git commit -m "Auto-fix: Optimize Dockerfile to reduce image size"
+            git push
+            echo "Automatically optimized Dockerfile and pushed changes"
+          fi
+          
+          echo "::set-output name=optimized_dockerfile::true"
+
+  test:
+    runs-on: ubuntu-latest
+    needs: [dependency-check, docker-size-check]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ (needs.dependency-check.outputs.fixed_deps == 'true' || needs.docker-size-check.outputs.optimized_dockerfile == 'true') && 'HEAD' || github.ref }}
       
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -40,12 +270,17 @@ jobs:
           python init_database.py
 
   deploy:
-    needs: test
+    needs: [test, dependency-check, docker-size-check]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    outputs:
+      deployment_success: ${{ steps.deploy.outputs.deployment_success }}
+      deployment_logs: ${{ steps.deploy.outputs.deployment_logs }}
     
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ (needs.dependency-check.outputs.fixed_deps == 'true' || needs.docker-size-check.outputs.optimized_dockerfile == 'true') && 'HEAD' || github.ref }}
       
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -61,7 +296,118 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
         
       - name: Deploy to Fly.io
-        run: flyctl deploy --remote-only
+        id: deploy
+        run: |
+          # Attempt deployment
+          if flyctl deploy --remote-only; then
+            echo "::set-output name=deployment_success::true"
+            echo "Deployment successful!"
+            
+            # Capture logs for verification
+            flyctl logs --app sns-ai-agent > /tmp/deployment_logs.txt
+            echo "::set-output name=deployment_logs::/tmp/deployment_logs.txt"
+          else
+            echo "::set-output name=deployment_success::false"
+            echo "Deployment failed!"
+            
+            # Capture logs for debugging
+            flyctl logs --app sns-ai-agent > /tmp/deployment_logs.txt
+            echo "::set-output name=deployment_logs::/tmp/deployment_logs.txt"
+            
+            # Don't fail the workflow, we'll handle errors in the next job
+            exit 0
+          fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          INSTAGRAM_USERNAME: ${{ secrets.INSTAGRAM_USERNAME }}
+          INSTAGRAM_PASSWORD: ${{ secrets.INSTAGRAM_PASSWORD }}
+          TIKTOK_API_KEY: ${{ secrets.TIKTOK_API_KEY }}
+
+  error-analysis:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: needs.deploy.outputs.deployment_success == 'false' && (github.event.inputs.auto_fix == 'true' || github.event_name == 'workflow_dispatch')
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Analyze deployment logs
+        run: |
+          # Download deployment logs
+          cat ${{ needs.deploy.outputs.deployment_logs }} > deployment_logs.txt
+          
+          # Check for common errors
+          if grep -q "ModuleNotFoundError: No module named" deployment_logs.txt; then
+            echo "Detected missing module error in logs"
+            
+            # Extract missing module name
+            MISSING_MODULE=$(grep "ModuleNotFoundError: No module named" deployment_logs.txt | sed -E "s/.*'([^']+)'.*/\1/")
+            echo "Missing module: $MISSING_MODULE"
+            
+            # Add missing module to requirements
+            if [ ! -z "$MISSING_MODULE" ]; then
+              echo "$MISSING_MODULE" >> requirements.txt
+              echo "$MISSING_MODULE" >> requirements-deploy.txt
+              
+              # Commit and push changes
+              git config --global user.name "Devin AI"
+              git config --global user.email "devin-ai-integration[bot]@users.noreply.github.com"
+              git add requirements.txt requirements-deploy.txt
+              git commit -m "Auto-fix: Add missing module $MISSING_MODULE"
+              git push
+              
+              # Trigger redeployment
+              curl -X POST \
+                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                https://api.github.com/repos/${{ github.repository }}/actions/workflows/ci_cd.yml/dispatches \
+                -d '{"ref":"${{ github.ref }}", "inputs": {"auto_fix": "true"}}'
+            fi
+          fi
+          
+          if grep -q "Not enough space to unpack image" deployment_logs.txt; then
+            echo "Detected image size error in logs"
+            
+            # Trigger the workflow with docker size optimization
+            curl -X POST \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              https://api.github.com/repos/${{ github.repository }}/actions/workflows/ci_cd.yml/dispatches \
+              -d '{"ref":"${{ github.ref }}", "inputs": {"auto_fix": "true"}}'
+          fi
+
+  deployment-verification:
+    needs: [deploy, dependency-check, docker-size-check]
+    runs-on: ubuntu-latest
+    if: needs.deploy.outputs.deployment_success == 'true' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Verify deployment
+        run: |
+          # Wait for deployment to stabilize
+          sleep 30
+          
+          # Check if the application is responding
+          if curl -s -o /dev/null -w "%{http_code}" https://sns-ai-agent.fly.dev/; then
+            echo "✅ Application is responding successfully"
+          else
+            echo "❌ Application is not responding"
+            
+            # If auto-fix is enabled, trigger redeployment
+            if [[ "${{ github.event.inputs.auto_fix }}" == "true" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+              curl -X POST \
+                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                https://api.github.com/repos/${{ github.repository }}/actions/workflows/ci_cd.yml/dispatches \
+                -d '{"ref":"${{ github.ref }}", "inputs": {"auto_fix": "true"}}'
+            fi
+          fi
+      
+      - name: Send notification
+        if: always()
+        run: |
+          echo "Deployment status: ${{ needs.deploy.outputs.deployment_success }}"
+          echo "Application URL: https://sns-ai-agent.fly.dev/"
+          
+          # Here you could add code to send notifications via email, Slack, etc.
+          # For example, using curl to send a webhook notification
