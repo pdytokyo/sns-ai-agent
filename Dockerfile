@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     git \
     ffmpeg \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Playwright browsers
@@ -18,7 +21,11 @@ RUN pip install playwright && \
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir moviepy==1.0.3 imageio-ffmpeg>=0.4.8
+
+# Verify moviepy installation
+RUN python -c "from moviepy.editor import VideoFileClip; print('MoviePy successfully imported')"
 
 # Copy application code
 COPY . .

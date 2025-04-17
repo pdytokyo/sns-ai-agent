@@ -18,7 +18,8 @@ playwright>=1.40.0
 yt-dlp>=2023.11.14
 
 # Video processing
-moviepy>=1.0.3
+moviepy==1.0.3
+imageio-ffmpeg>=0.4.8
 whisper>=1.1.10
 librosa>=0.10.1
 numpy>=1.24.3
