@@ -63,6 +63,7 @@ class Client(ClientBase, table=True):
     user: User = Relationship(back_populates="clients")
     videos: List["Video"] = Relationship(back_populates="client")
     posts: List["Post"] = Relationship(back_populates="client")
+    scripts: List["Script"] = Relationship(back_populates="client")
 
 class ClientCreate(ClientBase):
     pass
@@ -117,8 +118,6 @@ class ScriptRead(ScriptBase):
     id: int
     client_id: int
     created_at: datetime
-
-Client.scripts: List[Script] = Relationship(back_populates="client")
 
 class PostBase(SQLModel):
     caption: str
