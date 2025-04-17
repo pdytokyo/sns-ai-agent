@@ -12,7 +12,8 @@ router = APIRouter(
     tags=["script"]
 )
 
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+api_key = os.getenv("OPENAI_API_KEY", "dummy-api-key-for-testing")
+openai_client = OpenAI(api_key=api_key)
 
 @router.post("/generate", response_model=ScriptRead)
 async def generate_script(
