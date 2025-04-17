@@ -1,38 +1,54 @@
-.DS_Store
-data_backup.db
-data.db
-app.db
-
-# Python cache files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Database files
-*.db
-app/*.db
-
-# Uploaded files
-app/uploads/*
-!app/uploads/.gitkeep
-
-# Environment variables
-.env.local
-
-# Virtual environment
+# Virtual Environment
 venv/
+ENV/
 env/
 
-# Development files
-app/main_*.py
-!app/main_final.py
-!app/main_final_integration.py
-!app/main_public_no_auth.py
-!app/main_public_no_auth_integration.py
-!app/main_public_tunnel.py
-!app/main_public_tunnel_integration.py
-!app/main_enhanced_routes.py
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
-# Test files
-test_*.py
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite3
+
+# Environment variables
 .env
+
+# Uploads and data
+uploads/
+data/
+
+# Docker
+.dockerignore
+
+# OS specific
+.DS_Store
+Thumbs.db
