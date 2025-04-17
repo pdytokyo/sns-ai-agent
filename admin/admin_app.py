@@ -29,8 +29,42 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+if "jwt" not in st.session_state:
+    st.session_state["jwt"] = None
+
 with st.sidebar:
     st.title("SNS AI SaaS Admin")
+    st.markdown("---")
+    
+    if st.session_state["jwt"] is None:
+        st.subheader("Login")
+        with st.form("login_form", clear_on_submit=True):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submit_button = st.form_submit_button("Login")
+            
+            if submit_button:
+                try:
+                    response = httpx.post(
+                        f"{API_URL}/auth/login",
+                        data={"username": username, "password": password}
+                    )
+                    
+                    if response.status_code == 200:
+                        token_data = response.json()
+                        st.session_state["jwt"] = token_data["access_token"]
+                        st.experimental_rerun()
+                    else:
+                        st.error("Login failed. Please check your credentials.")
+                except Exception as e:
+                    st.error(f"Login error: {str(e)}")
+    else:
+        if st.button("Logout"):
+            st.session_state["jwt"] = None
+            st.experimental_rerun()
+        
+        st.success("Logged in successfully")
+    
     st.markdown("---")
     
     menu = st.radio(
@@ -123,23 +157,41 @@ elif menu == "Clients":
             users = session.exec(text("SELECT id, username FROM user ORDER BY username")).all()
             user_options = {user[0]: user[1] for user in users}
             
-            response = httpx.get(f"{API_URL}/client/", headers={"X-User-ID": "admin"})
-            if response.status_code != 200:
-                raise Exception(f"API error: {response.text}")
+            if st.session_state["jwt"] is None:
+                st.warning("Please login to view clients")
+                clients = []
+                client_data = []
+            else:
+                headers = {"Authorization": f"Bearer {st.session_state['jwt']}"}
+                response = httpx.get(f"{API_URL}/client/", headers=headers)
+                if response.status_code != 200:
+                    raise Exception(f"API error: {response.text}")
                 
-            clients_data = response.json()
-            clients = []
+                clients_data = response.json()
+                clients = []
+                
+                for client_item in clients_data:
+                    user = session.exec(text(f"SELECT username FROM user WHERE id = {client_item['user_id']}")).first()
+                    username = user[0] if user else "Unknown"
+                    clients.append((
+                        client_item["id"], 
+                        client_item["name"], 
+                        client_item.get("industry"), 
+                        username,
+                        client_item["created_at"]
+                    ))
             
-            for client_data in clients_data:
-                user = session.exec(text(f"SELECT username FROM user WHERE id = {client_data['user_id']}")).first()
-                username = user[0] if user else "Unknown"
-                clients.append((
-                    client_data["id"], 
-                    client_data["name"], 
-                    client_data.get("industry"), 
-                    username,
-                    client_data["created_at"]
-                ))
+            if st.session_state["jwt"] is not None and clients_data:
+                for client_data in clients_data:
+                    user = session.exec(text(f"SELECT username FROM user WHERE id = {client_data['user_id']}")).first()
+                    username = user[0] if user else "Unknown"
+                    clients.append((
+                        client_data["id"], 
+                        client_data["name"], 
+                        client_data.get("industry"), 
+                        username,
+                        client_data["created_at"]
+                    ))
             
             client_data = []
             if clients:
@@ -160,9 +212,10 @@ elif menu == "Clients":
                     selected_client_id = st.selectbox("Select Client", [c["ID"] for c in client_data], key="list_client_select")
                     
                     if selected_client_id:
+                        headers = {"Authorization": f"Bearer {st.session_state['jwt']}"}
                         response = httpx.get(
                             f"{API_URL}/client/{selected_client_id}", 
-                            headers={"X-User-ID": "admin"}
+                            headers=headers
                         )
                         if response.status_code != 200:
                             raise Exception(f"API error: {response.text}")
@@ -255,6 +308,7 @@ elif menu == "Clients":
                             try:
                                 target_audience = json.loads(target_audience_json) if target_audience_json else {}
                                 
+                                headers = {"Authorization": f"Bearer {st.session_state['jwt']}"}
                                 response = httpx.post(
                                     f"{API_URL}/client/",
                                     json={
@@ -262,7 +316,7 @@ elif menu == "Clients":
                                         "industry": industry,
                                         "target_audience": target_audience,
                                     },
-                                    headers={"X-User-ID": str(user_id)}
+                                    headers=headers
                                 )
                                 
                                 if response.status_code != 200:
@@ -285,9 +339,10 @@ elif menu == "Clients":
                                                 key="edit_client_select")
                     
                     if edit_client_id:
+                        headers = {"Authorization": f"Bearer {st.session_state['jwt']}"}
                         response = httpx.get(
                             f"{API_URL}/client/{edit_client_id}", 
-                            headers={"X-User-ID": "admin"}
+                            headers=headers
                         )
                         if response.status_code != 200:
                             raise Exception(f"API error: {response.text}")
@@ -333,6 +388,7 @@ elif menu == "Clients":
                                         try:
                                             target_audience = json.loads(edit_target_audience_json) if edit_target_audience_json else {}
                                             
+                                            headers = {"Authorization": f"Bearer {st.session_state['jwt']}"}
                                             response = httpx.put(
                                                 f"{API_URL}/client/{edit_client_id}",
                                                 json={
@@ -340,7 +396,7 @@ elif menu == "Clients":
                                                     "industry": edit_industry,
                                                     "target_audience": target_audience,
                                                 },
-                                                headers={"X-User-ID": str(edit_user_id)}
+                                                headers=headers
                                             )
                                             
                                             if response.status_code != 200:
@@ -378,9 +434,10 @@ elif menu == "Clients":
                         else:
                             if st.button("Confirm Delete", key="confirm_delete"):
                                 try:
+                                    headers = {"Authorization": f"Bearer {st.session_state['jwt']}"}
                                     response = httpx.delete(
                                         f"{API_URL}/client/{delete_client_id}",
-                                        headers={"X-User-ID": "admin"}  # Admin access required for deletion
+                                        headers=headers
                                     )
                                     
                                     if response.status_code != 204:
@@ -399,157 +456,161 @@ elif menu == "Clients":
 elif menu == "Failed Jobs":
     st.title("Failed Jobs")
     
-    try:
-        with get_db_connection() as session:
-            failed_jobs = session.exec(text("""
-                SELECT j.id, j.job_type, j.error_message, j.created_at, 
-                       c.name as client_name, u.username as user_name
-                FROM job_log j
-                LEFT JOIN client c ON j.client_id = c.id
-                LEFT JOIN user u ON j.user_id = u.id
-                WHERE j.status = 'failed'
-                ORDER BY j.created_at DESC
-            """)).all()
-            
-            if failed_jobs:
-                job_data = []
-                for job in failed_jobs:
-                    job_data.append({
-                        "ID": job[0],
-                        "Job Type": job[1],
-                        "Error Message": job[2],
-                        "Created At": format_datetime(job[3]),
-                        "Client": job[4] if job[4] else "N/A",
-                        "User": job[5] if job[5] else "N/A"
-                    })
+    if st.session_state["jwt"] is None:
+        st.warning("Please login to view failed jobs")
+    else:
+        try:
+            with get_db_connection() as session:
+                failed_jobs = session.exec(text("""
+                    SELECT j.id, j.job_type, j.error_message, j.created_at, 
+                           c.name as client_name, u.username as user_name
+                    FROM job_log j
+                    LEFT JOIN client c ON j.client_id = c.id
+                    LEFT JOIN user u ON j.user_id = u.id
+                    WHERE j.status = 'failed'
+                    ORDER BY j.created_at DESC
+                """)).all()
                 
-                col1, col2 = st.columns(2)
-                with col1:
-                    job_types = ["All"] + list(set(j["Job Type"] for j in job_data))
-                    selected_job_type = st.selectbox("Filter by Job Type", job_types)
-                
-                with col2:
-                    clients = ["All"] + list(set(j["Client"] for j in job_data if j["Client"] != "N/A"))
-                    selected_client = st.selectbox("Filter by Client", clients)
-                
-                filtered_data = job_data
-                if selected_job_type != "All":
-                    filtered_data = [j for j in filtered_data if j["Job Type"] == selected_job_type]
-                
-                if selected_client != "All":
-                    filtered_data = [j for j in filtered_data if j["Client"] == selected_client]
-                
-                st.dataframe(pd.DataFrame(filtered_data), use_container_width=True)
-                
-                if filtered_data:
-                    st.subheader("Job Details")
-                    selected_job_id = st.selectbox("Select Job", [j["ID"] for j in filtered_data])
+                if failed_jobs:
+                    job_data = []
+                    for job in failed_jobs:
+                        job_data.append({
+                            "ID": job[0],
+                            "Job Type": job[1],
+                            "Error Message": job[2],
+                            "Created At": format_datetime(job[3]),
+                            "Client": job[4] if job[4] else "N/A",
+                            "User": job[5] if job[5] else "N/A"
+                        })
                     
-                    if selected_job_id:
-                        selected_job = next((j for j in filtered_data if j["ID"] == selected_job_id), None)
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        job_types = ["All"] + list(set(j["Job Type"] for j in job_data))
+                        selected_job_type = st.selectbox("Filter by Job Type", job_types)
+                    
+                    with col2:
+                        clients = ["All"] + list(set(j["Client"] for j in job_data if j["Client"] != "N/A"))
+                        selected_client = st.selectbox("Filter by Client", clients)
+                    
+                    filtered_data = job_data
+                    if selected_job_type != "All":
+                        filtered_data = [j for j in filtered_data if j["Job Type"] == selected_job_type]
+                    
+                    if selected_client != "All":
+                        filtered_data = [j for j in filtered_data if j["Client"] == selected_client]
+                    
+                    st.dataframe(pd.DataFrame(filtered_data), use_container_width=True)
+                    
+                    if filtered_data:
+                        st.subheader("Job Details")
+                        selected_job_id = st.selectbox("Select Job", [j["ID"] for j in filtered_data])
                         
-                        if selected_job:
-                            st.write(f"**Job Type:** {selected_job['Job Type']}")
-                            st.write(f"**Client:** {selected_job['Client']}")
-                            st.write(f"**User:** {selected_job['User']}")
-                            st.write(f"**Created At:** {selected_job['Created At']}")
+                        if selected_job_id:
+                            selected_job = next((j for j in filtered_data if j["ID"] == selected_job_id), None)
                             
-                            st.subheader("Error Message")
-                            st.code(selected_job["Error Message"], language="text")
-            else:
-                st.success("No failed jobs found")
-    
-    except Exception as e:
-        st.error(f"Error loading failed jobs data: {str(e)}")
+                            if selected_job:
+                                st.write(f"**Job Type:** {selected_job['Job Type']}")
+                                st.write(f"**Client:** {selected_job['Client']}")
+                                st.write(f"**User:** {selected_job['User']}")
+                                st.write(f"**Created At:** {selected_job['Created At']}")
+                                
+                                st.subheader("Error Message")
+                                st.code(selected_job["Error Message"], language="text")
+                else:
+                    st.success("No failed jobs found")
+        except Exception as e:
+            st.error(f"Error loading failed jobs data: {str(e)}")
 
 elif menu == "Usage Charts":
     st.title("Usage Charts")
     
-    try:
-        col1, col2 = st.columns(2)
-        with col1:
-            start_date = st.date_input("Start Date", datetime.now() - timedelta(days=30))
-        
-        with col2:
-            end_date = st.date_input("End Date", datetime.now())
-        
-        if start_date > end_date:
-            st.error("Start date must be before end date")
-        else:
-            start_datetime = datetime.combine(start_date, datetime.min.time())
-            end_datetime = datetime.combine(end_date, datetime.max.time())
+    if st.session_state["jwt"] is None:
+        st.warning("Please login to view usage charts")
+    else:
+        try:
+            col1, col2 = st.columns(2)
+            with col1:
+                start_date = st.date_input("Start Date", datetime.now() - timedelta(days=30))
             
-            with get_db_connection() as session:
-                videos_by_day = session.exec(text(f"""
-                    SELECT date(created_at) as day, COUNT(*) as count
-                    FROM video
-                    WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
-                    GROUP BY day
-                    ORDER BY day
-                """)).all()
+            with col2:
+                end_date = st.date_input("End Date", datetime.now())
+            
+            if start_date > end_date:
+                st.error("Start date must be before end date")
+            else:
+                start_datetime = datetime.combine(start_date, datetime.min.time())
+                end_datetime = datetime.combine(end_date, datetime.max.time())
                 
-                posts_by_day = session.exec(text(f"""
-                    SELECT date(created_at) as day, COUNT(*) as count
-                    FROM post
-                    WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
-                    GROUP BY day
-                    ORDER BY day
-                """)).all()
-                
-                jobs_by_day = session.exec(text(f"""
-                    SELECT date(created_at) as day, status, COUNT(*) as count
-                    FROM job_log
-                    WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
-                    GROUP BY day, status
-                    ORDER BY day
-                """)).all()
-                
-                if videos_by_day:
-                    videos_df = pd.DataFrame(videos_by_day, columns=["day", "count"])
-                    videos_df["day"] = pd.to_datetime(videos_df["day"])
+                with get_db_connection() as session:
+                    videos_by_day = session.exec(text(f"""
+                        SELECT date(created_at) as day, COUNT(*) as count
+                        FROM video
+                        WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
+                        GROUP BY day
+                        ORDER BY day
+                    """)).all()
                     
-                    st.subheader("Videos by Day")
-                    fig = px.line(videos_df, x="day", y="count", title="Videos Created by Day")
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("No video data available for the selected period")
-                
-                if posts_by_day:
-                    posts_df = pd.DataFrame(posts_by_day, columns=["day", "count"])
-                    posts_df["day"] = pd.to_datetime(posts_df["day"])
+                    posts_by_day = session.exec(text(f"""
+                        SELECT date(created_at) as day, COUNT(*) as count
+                        FROM post
+                        WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
+                        GROUP BY day
+                        ORDER BY day
+                    """)).all()
                     
-                    st.subheader("Posts by Day")
-                    fig = px.line(posts_df, x="day", y="count", title="Posts Created by Day")
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("No post data available for the selected period")
-                
-                if jobs_by_day:
-                    jobs_df = pd.DataFrame(jobs_by_day, columns=["day", "status", "count"])
-                    jobs_df["day"] = pd.to_datetime(jobs_df["day"])
+                    jobs_by_day = session.exec(text(f"""
+                        SELECT date(created_at) as day, status, COUNT(*) as count
+                        FROM job_log
+                        WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
+                        GROUP BY day, status
+                        ORDER BY day
+                    """)).all()
                     
-                    st.subheader("Jobs by Day and Status")
-                    fig = px.line(jobs_df, x="day", y="count", color="status", title="Jobs by Day and Status")
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("No job data available for the selected period")
-                
-                job_types = session.exec(text(f"""
-                    SELECT job_type, COUNT(*) as count
-                    FROM job_log
-                    WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
-                    GROUP BY job_type
-                    ORDER BY count DESC
-                """)).all()
-                
-                if job_types:
-                    job_types_df = pd.DataFrame(job_types, columns=["job_type", "count"])
+                    if videos_by_day:
+                        videos_df = pd.DataFrame(videos_by_day, columns=["day", "count"])
+                        videos_df["day"] = pd.to_datetime(videos_df["day"])
+                        
+                        st.subheader("Videos by Day")
+                        fig = px.line(videos_df, x="day", y="count", title="Videos Created by Day")
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No video data available for the selected period")
                     
-                    st.subheader("Job Types Distribution")
-                    fig = px.pie(job_types_df, values="count", names="job_type", title="Job Types Distribution")
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("No job type data available for the selected period")
-    
-    except Exception as e:
-        st.error(f"Error loading usage charts data: {str(e)}")
+                    if posts_by_day:
+                        posts_df = pd.DataFrame(posts_by_day, columns=["day", "count"])
+                        posts_df["day"] = pd.to_datetime(posts_df["day"])
+                        
+                        st.subheader("Posts by Day")
+                        fig = px.line(posts_df, x="day", y="count", title="Posts Created by Day")
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No post data available for the selected period")
+                    
+                    if jobs_by_day:
+                        jobs_df = pd.DataFrame(jobs_by_day, columns=["day", "status", "count"])
+                        jobs_df["day"] = pd.to_datetime(jobs_df["day"])
+                        
+                        st.subheader("Jobs by Day and Status")
+                        fig = px.line(jobs_df, x="day", y="count", color="status", title="Jobs by Day and Status")
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No job data available for the selected period")
+                    
+                    job_types = session.exec(text(f"""
+                        SELECT job_type, COUNT(*) as count
+                        FROM job_log
+                        WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
+                        GROUP BY job_type
+                        ORDER BY count DESC
+                    """)).all()
+                    
+                    if job_types:
+                        job_types_df = pd.DataFrame(job_types, columns=["job_type", "count"])
+                        
+                        st.subheader("Job Types Distribution")
+                        fig = px.pie(job_types_df, values="count", names="job_type", title="Job Types Distribution")
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No job type data available for the selected period")
+        except Exception as e:
+            st.error(f"Error loading usage charts data: {str(e)}")
