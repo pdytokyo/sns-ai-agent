@@ -60,17 +60,21 @@ if menu == "Dashboard":
     
     try:
         with get_db_connection() as session:
-            user_count = session.exec(text("SELECT COUNT(*) FROM user")).first()[0]
+            from sqlmodel import select
+            from sqlalchemy import func
+            from app.models import User, Client, Video, Post, JobLog
             
-            client_count = session.exec(text("SELECT COUNT(*) FROM client")).first()[0]
+            user_count = session.exec(select(func.count(User.id))).first()
             
-            video_count = session.exec(text("SELECT COUNT(*) FROM video")).first()[0]
-            processed_video_count = session.exec(text("SELECT COUNT(*) FROM video WHERE processed = 1")).first()[0]
+            client_count = session.exec(select(func.count(Client.id))).first()
             
-            post_count = session.exec(text("SELECT COUNT(*) FROM post")).first()[0]
-            posted_count = session.exec(text("SELECT COUNT(*) FROM post WHERE posted = 1")).first()[0]
+            video_count = session.exec(select(func.count(Video.id))).first()
+            processed_video_count = session.exec(select(func.count(Video.id)).where(Video.processed == True)).first()
             
-            failed_job_count = session.exec(text("SELECT COUNT(*) FROM job_log WHERE status = 'failed'")).first()[0]
+            post_count = session.exec(select(func.count(Post.id))).first()
+            posted_count = session.exec(select(func.count(Post.id)).where(Post.posted == True)).first()
+            
+            failed_job_count = session.exec(select(func.count(JobLog.id)).where(JobLog.status == "failed")).first()
         
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -89,12 +93,16 @@ if menu == "Dashboard":
         st.subheader("Recent Activity")
         
         with get_db_connection() as session:
-            recent_logs = session.exec(text("""
-                SELECT job_type, status, error_message, created_at 
-                FROM job_log 
-                ORDER BY created_at DESC 
-                LIMIT 5
-            """)).all()
+            from app.models import JobLog
+            
+            recent_logs_query = select(
+                JobLog.job_type, 
+                JobLog.status, 
+                JobLog.error_message, 
+                JobLog.created_at
+            ).order_by(JobLog.created_at.desc()).limit(5)
+            
+            recent_logs = session.exec(recent_logs_query).all()
             
             if recent_logs:
                 log_data = []
@@ -118,12 +126,17 @@ elif menu == "Clients":
     
     try:
         with get_db_connection() as session:
-            clients = session.exec(text("""
-                SELECT c.id, c.name, c.industry, u.username, c.created_at
-                FROM client c
-                JOIN user u ON c.user_id = u.id
-                ORDER BY c.created_at DESC
-            """)).all()
+            from app.models import Client, User
+            
+            clients_query = select(
+                Client.id, 
+                Client.name, 
+                Client.industry, 
+                User.username, 
+                Client.created_at
+            ).join(User).order_by(Client.created_at.desc())
+            
+            clients = session.exec(clients_query).all()
             
             if clients:
                 client_data = []
@@ -142,12 +155,16 @@ elif menu == "Clients":
                 selected_client_id = st.selectbox("Select Client", [c["ID"] for c in client_data])
                 
                 if selected_client_id:
-                    client = session.exec(text(f"""
-                        SELECT c.id, c.name, c.industry, c.target_audience, c.created_at, u.username
-                        FROM client c
-                        JOIN user u ON c.user_id = u.id
-                        WHERE c.id = {selected_client_id}
-                    """)).first()
+                    client_detail_query = select(
+                        Client.id, 
+                        Client.name, 
+                        Client.industry, 
+                        Client.target_audience, 
+                        Client.created_at, 
+                        User.username
+                    ).join(User).where(Client.id == selected_client_id)
+                    
+                    client = session.exec(client_detail_query).first()
                     
                     if client:
                         col1, col2 = st.columns(2)
@@ -167,23 +184,27 @@ elif menu == "Clients":
                         
                         st.subheader("Client Statistics")
                         
-                        videos = session.exec(text(f"""
-                            SELECT COUNT(*), SUM(CASE WHEN processed = 1 THEN 1 ELSE 0 END)
-                            FROM video
-                            WHERE client_id = {selected_client_id}
-                        """)).first()
+                        from app.models import Video, Post, JobLog
                         
-                        posts = session.exec(text(f"""
-                            SELECT COUNT(*), SUM(CASE WHEN posted = 1 THEN 1 ELSE 0 END)
-                            FROM post
-                            WHERE client_id = {selected_client_id}
-                        """)).first()
+                        video_count_query = select(
+                            func.count(Video.id),
+                            func.sum(func.case((Video.processed == True, 1), else_=0))
+                        ).where(Video.client_id == selected_client_id)
+                        videos = session.exec(video_count_query).first()
                         
-                        failed_jobs = session.exec(text(f"""
-                            SELECT COUNT(*)
-                            FROM job_log
-                            WHERE client_id = {selected_client_id} AND status = 'failed'
-                        """)).first()
+                        post_count_query = select(
+                            func.count(Post.id),
+                            func.sum(func.case((Post.posted == True, 1), else_=0))
+                        ).where(Post.client_id == selected_client_id)
+                        posts = session.exec(post_count_query).first()
+                        
+                        failed_jobs_query = select(
+                            func.count(JobLog.id)
+                        ).where(
+                            JobLog.client_id == selected_client_id,
+                            JobLog.status == "failed"
+                        )
+                        failed_jobs = session.exec(failed_jobs_query).first()
                         
                         col1, col2, col3 = st.columns(3)
                         with col1:
@@ -207,15 +228,21 @@ elif menu == "Failed Jobs":
     
     try:
         with get_db_connection() as session:
-            failed_jobs = session.exec(text("""
-                SELECT j.id, j.job_type, j.error_message, j.created_at, 
-                       c.name as client_name, u.username as user_name
-                FROM job_log j
-                LEFT JOIN client c ON j.client_id = c.id
-                LEFT JOIN user u ON j.user_id = u.id
-                WHERE j.status = 'failed'
-                ORDER BY j.created_at DESC
-            """)).all()
+            from app.models import JobLog, Client, User
+            
+            failed_jobs_query = select(
+                JobLog.id,
+                JobLog.job_type,
+                JobLog.error_message,
+                JobLog.created_at,
+                Client.name.label("client_name"),
+                User.username.label("user_name")
+            ).outerjoin(Client, JobLog.client_id == Client.id
+            ).outerjoin(User, JobLog.user_id == User.id
+            ).where(JobLog.status == "failed"
+            ).order_by(JobLog.created_at.desc())
+            
+            failed_jobs = session.exec(failed_jobs_query).all()
             
             if failed_jobs:
                 job_data = []
@@ -286,29 +313,45 @@ elif menu == "Usage Charts":
             end_datetime = datetime.combine(end_date, datetime.max.time())
             
             with get_db_connection() as session:
-                videos_by_day = session.exec(text(f"""
-                    SELECT date(created_at) as day, COUNT(*) as count
-                    FROM video
-                    WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
-                    GROUP BY day
-                    ORDER BY day
-                """)).all()
+                from app.models import Video, Post, JobLog
+                from sqlalchemy import func, extract
                 
-                posts_by_day = session.exec(text(f"""
-                    SELECT date(created_at) as day, COUNT(*) as count
-                    FROM post
-                    WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
-                    GROUP BY day
-                    ORDER BY day
-                """)).all()
+                videos_by_day_query = select(
+                    func.date(Video.created_at).label("day"),
+                    func.count(Video.id).label("count")
+                ).where(
+                    Video.created_at.between(start_datetime, end_datetime)
+                ).group_by(
+                    "day"
+                ).order_by(
+                    "day"
+                )
+                videos_by_day = session.exec(videos_by_day_query).all()
                 
-                jobs_by_day = session.exec(text(f"""
-                    SELECT date(created_at) as day, status, COUNT(*) as count
-                    FROM job_log
-                    WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
-                    GROUP BY day, status
-                    ORDER BY day
-                """)).all()
+                posts_by_day_query = select(
+                    func.date(Post.created_at).label("day"),
+                    func.count(Post.id).label("count")
+                ).where(
+                    Post.created_at.between(start_datetime, end_datetime)
+                ).group_by(
+                    "day"
+                ).order_by(
+                    "day"
+                )
+                posts_by_day = session.exec(posts_by_day_query).all()
+                
+                jobs_by_day_query = select(
+                    func.date(JobLog.created_at).label("day"),
+                    JobLog.status,
+                    func.count(JobLog.id).label("count")
+                ).where(
+                    JobLog.created_at.between(start_datetime, end_datetime)
+                ).group_by(
+                    "day", JobLog.status
+                ).order_by(
+                    "day"
+                )
+                jobs_by_day = session.exec(jobs_by_day_query).all()
                 
                 if videos_by_day:
                     videos_df = pd.DataFrame(videos_by_day, columns=["day", "count"])
@@ -340,13 +383,17 @@ elif menu == "Usage Charts":
                 else:
                     st.info("No job data available for the selected period")
                 
-                job_types = session.exec(text(f"""
-                    SELECT job_type, COUNT(*) as count
-                    FROM job_log
-                    WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
-                    GROUP BY job_type
-                    ORDER BY count DESC
-                """)).all()
+                job_types_query = select(
+                    JobLog.job_type,
+                    func.count(JobLog.id).label("count")
+                ).where(
+                    JobLog.created_at.between(start_datetime, end_datetime)
+                ).group_by(
+                    JobLog.job_type
+                ).order_by(
+                    func.count(JobLog.id).desc()
+                )
+                job_types = session.exec(job_types_query).all()
                 
                 if job_types:
                     job_types_df = pd.DataFrame(job_types, columns=["job_type", "count"])
