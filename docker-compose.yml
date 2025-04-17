@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/sns_ai_saas.db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./admin:/app
+      - backend_data:/app/data
+    environment:
+      - API_URL=http://backend:8000
+      - DATABASE_URL=sqlite:///./data/sns_ai_saas.db
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_data:
