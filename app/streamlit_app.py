@@ -112,16 +112,6 @@ elif menu == "Client Information":
             conn = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
             
-            cursor.execute('''
-            CREATE TABLE IF NOT EXISTS clients (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                email TEXT,
-                industry TEXT,
-                target_audience TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            ''')
             
             target_audience = json.dumps({
                 "age_range": age_range,
@@ -149,16 +139,6 @@ elif menu == "Client Information":
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS clients (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT,
-        industry TEXT,
-        target_audience TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
     
     cursor.execute("SELECT * FROM clients ORDER BY created_at DESC")
     clients = cursor.fetchall()
@@ -192,16 +172,6 @@ elif menu == "Instagram Research":
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS clients (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT,
-            industry TEXT,
-            target_audience TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        ''')
         
         cursor.execute("SELECT id, name FROM clients ORDER BY name")
         clients = cursor.fetchall()

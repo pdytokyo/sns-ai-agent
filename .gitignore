@@ -35,3 +35,4 @@ app/main_*.py
 
 # Test files
 test_*.py
+.env
