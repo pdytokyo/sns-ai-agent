@@ -18,8 +18,10 @@ async def create_client(
     session: Session = Depends(get_session)
 ):
     """Create a new client"""
-    db_client = Client.from_orm(client)
-    db_client.user_id = current_user.id
+    client_data = client.model_dump()
+    client_data["user_id"] = current_user.id
+    
+    db_client = Client.model_validate(client_data)
     
     session.add(db_client)
     session.commit()
@@ -94,7 +96,7 @@ async def update_client(
             detail="Not authorized to update this client"
         )
     
-    client_data = client_update.dict(exclude_unset=True)
+    client_data = client_update.model_dump(exclude_unset=True)
     for key, value in client_data.items():
         setattr(db_client, key, value)
     
