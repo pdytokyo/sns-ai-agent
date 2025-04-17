@@ -116,8 +116,13 @@ if menu == "Dashboard":
 elif menu == "Clients":
     st.title("Clients")
     
+    client_tabs = st.tabs(["List Clients", "Add Client", "Edit Client", "Delete Client"])
+    
     try:
         with get_db_connection() as session:
+            users = session.exec(text("SELECT id, username FROM user ORDER BY username")).all()
+            user_options = {user[0]: user[1] for user in users}
+            
             clients = session.exec(text("""
                 SELECT c.id, c.name, c.industry, u.username, c.created_at
                 FROM client c
@@ -125,8 +130,8 @@ elif menu == "Clients":
                 ORDER BY c.created_at DESC
             """)).all()
             
+            client_data = []
             if clients:
-                client_data = []
                 for client in clients:
                     client_data.append({
                         "ID": client[0],
@@ -135,69 +140,210 @@ elif menu == "Clients":
                         "Owner": client[3],
                         "Created At": format_datetime(client[4])
                     })
-                
-                st.dataframe(pd.DataFrame(client_data), use_container_width=True)
-                
-                st.subheader("Client Details")
-                selected_client_id = st.selectbox("Select Client", [c["ID"] for c in client_data])
-                
-                if selected_client_id:
-                    client = session.exec(text(f"""
-                        SELECT c.id, c.name, c.industry, c.target_audience, c.created_at, u.username
-                        FROM client c
-                        JOIN user u ON c.user_id = u.id
-                        WHERE c.id = {selected_client_id}
-                    """)).first()
+            
+            with client_tabs[0]:
+                if client_data:
+                    st.dataframe(pd.DataFrame(client_data), use_container_width=True)
                     
-                    if client:
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.write(f"**Name:** {client[1]}")
-                            st.write(f"**Industry:** {client[2] if client[2] else 'N/A'}")
-                            st.write(f"**Owner:** {client[5]}")
-                            st.write(f"**Created At:** {format_datetime(client[4])}")
+                    st.subheader("Client Details")
+                    selected_client_id = st.selectbox("Select Client", [c["ID"] for c in client_data], key="list_client_select")
+                    
+                    if selected_client_id:
+                        client = session.exec(text(f"""
+                            SELECT c.id, c.name, c.industry, c.target_audience, c.created_at, u.username
+                            FROM client c
+                            JOIN user u ON c.user_id = u.id
+                            WHERE c.id = {selected_client_id}
+                        """)).first()
                         
-                        with col2:
+                        if client:
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.write(f"**Name:** {client[1]}")
+                                st.write(f"**Industry:** {client[2] if client[2] else 'N/A'}")
+                                st.write(f"**Owner:** {client[5]}")
+                                st.write(f"**Created At:** {format_datetime(client[4])}")
+                            
+                            with col2:
+                                try:
+                                    target_audience = json.loads(client[3]) if client[3] else {}
+                                    st.write("**Target Audience:**")
+                                    st.json(target_audience)
+                                except:
+                                    st.write("**Target Audience:** Invalid format")
+                            
+                            st.subheader("Client Statistics")
+                            
+                            videos = session.exec(text(f"""
+                                SELECT COUNT(*), SUM(CASE WHEN processed = 1 THEN 1 ELSE 0 END)
+                                FROM video
+                                WHERE client_id = {selected_client_id}
+                            """)).first()
+                            
+                            posts = session.exec(text(f"""
+                                SELECT COUNT(*), SUM(CASE WHEN posted = 1 THEN 1 ELSE 0 END)
+                                FROM post
+                                WHERE client_id = {selected_client_id}
+                            """)).first()
+                            
+                            failed_jobs = session.exec(text(f"""
+                                SELECT COUNT(*)
+                                FROM job_log
+                                WHERE client_id = {selected_client_id} AND status = 'failed'
+                            """)).first()
+                            
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Total Videos", videos[0])
+                                st.metric("Processed Videos", f"{videos[1]} ({videos[1]/videos[0]*100:.1f}%)" if videos[0] > 0 else "0 (0.0%)")
+                            
+                            with col2:
+                                st.metric("Total Posts", posts[0])
+                                st.metric("Posted", f"{posts[1]} ({posts[1]/posts[0]*100:.1f}%)" if posts[0] > 0 else "0 (0.0%)")
+                            
+                            with col3:
+                                st.metric("Failed Jobs", failed_jobs[0])
+                else:
+                    st.info("No clients found")
+            
+            with client_tabs[1]:
+                st.subheader("Add New Client")
+                
+                with st.form("add_client_form"):
+                    name = st.text_input("Client Name", key="add_name")
+                    industry = st.text_input("Industry", key="add_industry")
+                    
+                    st.write("Target Audience (JSON format)")
+                    target_audience_json = st.text_area(
+                        "Enter target audience as JSON", 
+                        value='{"age": "25-34", "interests": ["technology", "social media"]}',
+                        key="add_target_audience"
+                    )
+                    
+                    user_id = st.selectbox("Owner", options=list(user_options.keys()), format_func=lambda x: user_options[x], key="add_user")
+                    
+                    submit_button = st.form_submit_button("Add Client")
+                    
+                    if submit_button:
+                        if not name:
+                            st.error("Client name is required")
+                        else:
                             try:
-                                target_audience = json.loads(client[3]) if client[3] else {}
-                                st.write("**Target Audience:**")
-                                st.json(target_audience)
-                            except:
-                                st.write("**Target Audience:** Invalid format")
-                        
-                        st.subheader("Client Statistics")
-                        
-                        videos = session.exec(text(f"""
-                            SELECT COUNT(*), SUM(CASE WHEN processed = 1 THEN 1 ELSE 0 END)
-                            FROM video
-                            WHERE client_id = {selected_client_id}
+                                target_audience = json.loads(target_audience_json) if target_audience_json else {}
+                                
+                                session.exec(text(f"""
+                                    INSERT INTO client (name, industry, target_audience, user_id, created_at, updated_at)
+                                    VALUES ('{name}', '{industry}', '{json.dumps(target_audience)}', {user_id}, 
+                                    datetime('now'), datetime('now'))
+                                """))
+                                session.commit()
+                                
+                                st.success(f"Client '{name}' added successfully!")
+                                st.experimental_rerun()
+                            except json.JSONDecodeError:
+                                st.error("Invalid JSON format for target audience")
+                            except Exception as e:
+                                st.error(f"Error adding client: {str(e)}")
+            
+            with client_tabs[2]:
+                st.subheader("Edit Client")
+                
+                if client_data:
+                    edit_client_id = st.selectbox("Select Client to Edit", 
+                                                [c["ID"] for c in client_data], 
+                                                format_func=lambda x: next((c["Name"] for c in client_data if c["ID"] == x), ""),
+                                                key="edit_client_select")
+                    
+                    if edit_client_id:
+                        client = session.exec(text(f"""
+                            SELECT c.id, c.name, c.industry, c.target_audience, c.user_id
+                            FROM client c
+                            WHERE c.id = {edit_client_id}
                         """)).first()
                         
-                        posts = session.exec(text(f"""
-                            SELECT COUNT(*), SUM(CASE WHEN posted = 1 THEN 1 ELSE 0 END)
-                            FROM post
-                            WHERE client_id = {selected_client_id}
-                        """)).first()
+                        if client:
+                            with st.form("edit_client_form"):
+                                edit_name = st.text_input("Client Name", value=client[1], key="edit_name")
+                                edit_industry = st.text_input("Industry", value=client[2] if client[2] else "", key="edit_industry")
+                                
+                                try:
+                                    current_target_audience = json.loads(client[3]) if client[3] else {}
+                                except:
+                                    current_target_audience = {}
+                                
+                                edit_target_audience_json = st.text_area(
+                                    "Target Audience (JSON format)", 
+                                    value=json.dumps(current_target_audience, indent=2),
+                                    key="edit_target_audience"
+                                )
+                                
+                                edit_user_id = st.selectbox("Owner", 
+                                                        options=list(user_options.keys()), 
+                                                        index=list(user_options.keys()).index(client[4]) if client[4] in user_options else 0,
+                                                        format_func=lambda x: user_options[x],
+                                                        key="edit_user")
+                                
+                                update_button = st.form_submit_button("Update Client")
+                                
+                                if update_button:
+                                    if not edit_name:
+                                        st.error("Client name is required")
+                                    else:
+                                        try:
+                                            target_audience = json.loads(edit_target_audience_json) if edit_target_audience_json else {}
+                                            
+                                            session.exec(text(f"""
+                                                UPDATE client
+                                                SET name = '{edit_name}', 
+                                                    industry = '{edit_industry}', 
+                                                    target_audience = '{json.dumps(target_audience)}',
+                                                    user_id = {edit_user_id},
+                                                    updated_at = datetime('now')
+                                                WHERE id = {edit_client_id}
+                                            """))
+                                            session.commit()
+                                            
+                                            st.success(f"Client '{edit_name}' updated successfully!")
+                                            st.experimental_rerun()
+                                        except json.JSONDecodeError:
+                                            st.error("Invalid JSON format for target audience")
+                                        except Exception as e:
+                                            st.error(f"Error updating client: {str(e)}")
+                else:
+                    st.info("No clients found to edit")
+            
+            with client_tabs[3]:
+                st.subheader("Delete Client")
+                
+                if client_data:
+                    delete_client_id = st.selectbox("Select Client to Delete", 
+                                                [c["ID"] for c in client_data], 
+                                                format_func=lambda x: next((c["Name"] for c in client_data if c["ID"] == x), ""),
+                                                key="delete_client_select")
+                    
+                    if delete_client_id:
+                        client_name = next((c["Name"] for c in client_data if c["ID"] == delete_client_id), "")
                         
-                        failed_jobs = session.exec(text(f"""
-                            SELECT COUNT(*)
-                            FROM job_log
-                            WHERE client_id = {selected_client_id} AND status = 'failed'
-                        """)).first()
+                        st.warning(f"Are you sure you want to delete client '{client_name}'? This action cannot be undone.")
                         
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Total Videos", videos[0])
-                            st.metric("Processed Videos", f"{videos[1]} ({videos[1]/videos[0]*100:.1f}%)" if videos[0] > 0 else "0 (0.0%)")
+                        videos_count = session.exec(text(f"SELECT COUNT(*) FROM video WHERE client_id = {delete_client_id}")).first()[0]
+                        posts_count = session.exec(text(f"SELECT COUNT(*) FROM post WHERE client_id = {delete_client_id}")).first()[0]
+                        scripts_count = session.exec(text(f"SELECT COUNT(*) FROM script WHERE client_id = {delete_client_id}")).first()[0]
                         
-                        with col2:
-                            st.metric("Total Posts", posts[0])
-                            st.metric("Posted", f"{posts[1]} ({posts[1]/posts[0]*100:.1f}%)" if posts[0] > 0 else "0 (0.0%)")
-                        
-                        with col3:
-                            st.metric("Failed Jobs", failed_jobs[0])
-            else:
-                st.info("No clients found")
+                        if videos_count > 0 or posts_count > 0 or scripts_count > 0:
+                            st.error(f"This client has related records: {videos_count} videos, {posts_count} posts, {scripts_count} scripts. Delete these records first.")
+                        else:
+                            if st.button("Confirm Delete", key="confirm_delete"):
+                                try:
+                                    session.exec(text(f"DELETE FROM client WHERE id = {delete_client_id}"))
+                                    session.commit()
+                                    
+                                    st.success(f"Client '{client_name}' deleted successfully!")
+                                    st.experimental_rerun()
+                                except Exception as e:
+                                    st.error(f"Error deleting client: {str(e)}")
+                else:
+                    st.info("No clients found to delete")
     
     except Exception as e:
         st.error(f"Error loading client data: {str(e)}")

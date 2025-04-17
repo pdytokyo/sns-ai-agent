@@ -6,7 +6,7 @@ from sqlmodel import Session
 from .database import create_db_and_tables, get_session
 from .models import User, Client, Video, Post, Report, JobLog
 from .auth import get_current_active_user, get_admin_user
-from .routers import auth, script, video, post, report
+from .routers import auth, script, video, post, report, client
 
 app = FastAPI(
     title="SNS AI SaaS API",
@@ -27,6 +27,7 @@ app.include_router(script.router)
 app.include_router(video.router)
 app.include_router(post.router)
 app.include_router(report.router)
+app.include_router(client.router)
 
 @app.on_event("startup")
 async def on_startup():
