@@ -63,18 +63,20 @@ async def get_admin_stats(
     session: Session = Depends(get_session)
 ):
     """Get admin statistics"""
-    user_count = session.query(User).count()
+    from sqlalchemy import func, select
     
-    client_count = session.query(Client).count()
+    user_count = session.exec(select(func.count(User.id))).first()
     
-    video_count = session.query(Video).count()
-    processed_video_count = session.query(Video).filter(Video.processed == True).count()
+    client_count = session.exec(select(func.count(Client.id))).first()
     
-    post_count = session.query(Post).count()
-    posted_count = session.query(Post).filter(Post.posted == True).count()
-    scheduled_count = session.query(Post).filter(Post.posted == False, Post.scheduled_for != None).count()
+    video_count = session.exec(select(func.count(Video.id))).first()
+    processed_video_count = session.exec(select(func.count(Video.id)).where(Video.processed == True)).first()
     
-    failed_job_count = session.query(JobLog).filter(JobLog.status == "failed").count()
+    post_count = session.exec(select(func.count(Post.id))).first()
+    posted_count = session.exec(select(func.count(Post.id)).where(Post.posted == True)).first()
+    scheduled_count = session.exec(select(func.count(Post.id)).where(Post.posted == False, Post.scheduled_for != None)).first()
+    
+    failed_job_count = session.exec(select(func.count(JobLog.id)).where(JobLog.status == "failed")).first()
     
     return {
         "users": user_count,
