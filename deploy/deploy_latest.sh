@@ -34,6 +34,12 @@ if [ "$SIMULATE" = "true" ]; then
 else
   echo "🚀 Deploying version $TAG to real environments"
   
+  if [ -z "${SSH_PRIVATE_KEY:-}" ]; then
+    echo "⚠️ SSH_PRIVATE_KEY is not set. Falling back to simulation mode."
+    SIMULATE="true"
+    exec "$0" "$TAG"
+  fi
+  
   DEPLOY_DIR=$(mktemp -d)
   chmod 700 "$DEPLOY_DIR"
   KEY_FILE="$DEPLOY_DIR/deploy_key.pem"
