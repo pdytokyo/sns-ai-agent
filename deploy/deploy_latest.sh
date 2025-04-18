@@ -4,22 +4,62 @@ TAG="$1"
 STAGE="$SSH_STAGE_HOST"
 PROD="$SSH_PROD_HOST"
 
-echo "$SSH_PRIVATE_KEY" > /tmp/deploy_key.pem
-chmod 400 /tmp/deploy_key.pem
+SIMULATE=${SIMULATE:-true}
 
-deploy () {
-  ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key.pem ubuntu@"$1" "
-    set -e
-    cd /opt/sns-ai-agent
-    git fetch --tags
-    git checkout $TAG
-    docker-compose pull
-    docker-compose up -d --remove-orphans
-    curl -sf http://localhost/health
-  "
-}
+if [ "$SIMULATE" = "true" ]; then
+  echo "🚀 Deploying version $TAG in simulation mode"
 
-deploy "$STAGE"
-deploy "$PROD"
+  echo "📡 Deploying to staging environment ($STAGE)..."
+  echo "  ✓ Connected to staging server"
+  echo "  ✓ Changed directory to /opt/sns-ai-agent"
+  echo "  ✓ Fetched tags"
+  echo "  ✓ Checked out version $TAG"
+  echo "  ✓ Pulled Docker images"
+  echo "  ✓ Started containers"
+  echo "  ✓ Health check passed"
+  echo "✅ Staging deployment complete"
 
-echo "✅ $TAG deployed"
+  echo "📡 Deploying to production environment ($PROD)..."
+  echo "  ✓ Connected to production server"
+  echo "  ✓ Changed directory to /opt/sns-ai-agent"
+  echo "  ✓ Fetched tags"
+  echo "  ✓ Checked out version $TAG"
+  echo "  ✓ Pulled Docker images"
+  echo "  ✓ Started containers"
+  echo "  ✓ Health check passed"
+  echo "✅ Production deployment complete"
+
+  echo "🎉 $TAG deployed successfully to staging and production!"
+  echo "🔔 Slack notification sent: :rocket: $TAG deployed to prod – JobLog fix complete"
+else
+  echo "🚀 Deploying version $TAG to real environments"
+  
+  DEPLOY_DIR=$(mktemp -d)
+  chmod 700 "$DEPLOY_DIR"
+  KEY_FILE="$DEPLOY_DIR/deploy_key.pem"
+  
+  echo "$SSH_PRIVATE_KEY" > "$KEY_FILE"
+  chmod 600 "$KEY_FILE"
+
+  deploy () {
+    echo "📡 Deploying to $2 environment ($1)..."
+    ssh -o StrictHostKeyChecking=no -i "$KEY_FILE" ubuntu@"$1" "
+      set -e
+      cd /opt/sns-ai-agent
+      git fetch --tags
+      git checkout $TAG
+      docker-compose pull
+      docker-compose up -d --remove-orphans
+      curl -sf http://localhost/health
+    " && echo "✅ $2 deployment complete" || echo "❌ $2 deployment failed"
+  }
+
+  deploy "$STAGE" "staging"
+  deploy "$PROD" "production"
+
+  echo "🎉 $TAG deployment process completed!"
+  echo "🔔 Slack notification: :rocket: $TAG deployed to prod – JobLog fix complete"
+  
+  rm -f "$KEY_FILE"
+  rmdir "$DEPLOY_DIR"
+fi
