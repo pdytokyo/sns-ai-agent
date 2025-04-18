@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import os
-from sqlmodel import Session
+from sqlmodel import SQLModel, create_engine, Session
 
-from .database import create_db_and_tables, get_session
+from .database import create_db_and_tables, get_session, engine
 from .models import User, Client, Video, Post, Report, JobLog
 from .auth import get_current_active_user, get_admin_user
 from .routers import auth, script, video, post, report, client, admin
@@ -33,7 +33,7 @@ app.include_router(admin.router)
 @app.on_event("startup")
 async def on_startup():
     """Create database tables on startup"""
-    create_db_and_tables()
+    SQLModel.metadata.create_all(engine)
 
 @app.get("/")
 async def root():
