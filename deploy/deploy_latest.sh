@@ -45,6 +45,12 @@ else
     echo "📡 Deploying to $2 environment ($1)..."
     ssh -o StrictHostKeyChecking=no -i "$KEY_FILE" ubuntu@"$1" "
       set -e
+      if ! command -v docker-compose &> /dev/null; then
+        echo 'Installing docker-compose...'
+        sudo apt-get update
+        sudo apt-get install -y docker-compose
+      fi
+      
       mkdir -p /opt/sns-ai-agent
       cd /opt/sns-ai-agent
       if [ ! -d .git ]; then
