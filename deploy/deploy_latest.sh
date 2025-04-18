@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 TAG="$1"
-STAGE="$SSH_STAGE_HOST"
-PROD="$SSH_PROD_HOST"
+STAGE="${SSH_STAGE_HOST:-staging.example.com}"
+PROD="${SSH_PROD_HOST:-prod.example.com}"
 
 SIMULATE=${SIMULATE:-true}
 
