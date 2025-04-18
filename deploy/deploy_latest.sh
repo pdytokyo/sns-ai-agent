@@ -13,11 +13,11 @@ deploy () {
   HOST="$1"
   ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key.pem ubuntu@"$HOST" <<REMOTE
 set -e
-sudo mkdir -p /opt && sudo chown $USER /opt
+sudo mkdir -p /opt && sudo chown \$USER /opt
 [ -d /opt/sns-ai-agent/.git ] || git clone https://github.com/pdytokyo/sns-ai-agent.git /opt/sns-ai-agent
 cd /opt/sns-ai-agent
 git fetch --tags
-git checkout '$TAG'
+git checkout $TAG
 docker-compose pull
 docker-compose up -d --remove-orphans
 curl -sf http://localhost/health
