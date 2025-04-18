@@ -51,6 +51,12 @@ else
         sudo apt-get install -y docker-compose
       fi
       
+      if ! groups | grep -q docker; then
+        echo 'Adding user to docker group...'
+        sudo usermod -aG docker \$USER
+        exec sg docker -c "bash -c 'cd \$PWD && \$0 \$@'"
+      fi
+      
       mkdir -p /opt/sns-ai-agent
       cd /opt/sns-ai-agent
       if [ ! -d .git ]; then
