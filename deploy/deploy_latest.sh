@@ -45,7 +45,11 @@ else
     echo "📡 Deploying to $2 environment ($1)..."
     ssh -o StrictHostKeyChecking=no -i "$KEY_FILE" ubuntu@"$1" "
       set -e
+      mkdir -p /opt/sns-ai-agent
       cd /opt/sns-ai-agent
+      if [ ! -d .git ]; then
+        git clone https://github.com/pdytokyo/sns-ai-agent.git .
+      fi
       git fetch --tags
       git checkout $TAG
       docker-compose pull
