@@ -6,12 +6,13 @@ STAGE="${SSH_STAGE_HOST:-57.180.242.200}"
 PROD="${SSH_PROD_HOST:-52.69.83.83}"
 
 # --- write key ---
-printf '%s\n' "$SSH_PRIVATE_KEY" > ./deploy_key.pem
+printf '%s
+' "$SSH_PRIVATE_KEY" > /tmp/deploy_key.pem
 chmod 400 ./deploy_key.pem
 
 deploy () {
   HOST="$1"
-  ssh -o StrictHostKeyChecking=no -i ./deploy_key.pem ubuntu@"$HOST" <<REMOTE
+  ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key.pem ubuntu@"$HOST" <<REMOTE
 set -e
 sudo mkdir -p /opt && sudo chown \$USER /opt
 [ -d /opt/sns-ai-agent/.git ] || git clone https://github.com/pdytokyo/sns-ai-agent.git /opt/sns-ai-agent
