@@ -13,6 +13,7 @@ services:
     environment:
       - DATABASE_URL=sqlite:///./data/sns_ai_saas.db
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - IG_COOKIE_FILE=${IG_COOKIE_FILE:-./data/ig_cookies.txt}
     restart: unless-stopped
 
   admin:
@@ -27,6 +28,20 @@ services:
     environment:
       - API_URL=http://backend:8000
       - DATABASE_URL=sqlite:///./data/sns_ai_saas.db
+    depends_on:
+      - backend
+    restart: unless-stopped
+    
+  discordbot:
+    build:
+      context: ./bots
+      dockerfile: Dockerfile
+    volumes:
+      - ./bots:/app
+    environment:
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - API_URL=http://backend:8000
     depends_on:
       - backend
     restart: unless-stopped
