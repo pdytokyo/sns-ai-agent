@@ -12,8 +12,9 @@ from openai import OpenAI
 from moviepy.editor import VideoFileClip
 import yt_dlp
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from config import DB_PATH, OPENAI_API_KEY
+from config import DB_PATH, get_api_key
 
+OPENAI_API_KEY = get_api_key("OPENAI_API_KEY", default_value="dummy-api-key-for-testing")
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 def extract_username_and_shortcode(post_url):
