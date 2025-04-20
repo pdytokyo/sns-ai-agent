@@ -6,6 +6,9 @@ on:
       - main
     tags:
       - 'v*'
+  pull_request:
+    branches:
+      - main
 
 jobs:
   test:
@@ -29,11 +32,21 @@ jobs:
       - name: Test with pytest
         run: |
           pytest -q
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-logs
+          path: |
+            pytest-logs.txt
+            .pytest_cache/
 
   deploy:
     name: Deploy to EC2
     needs: test
     runs-on: ubuntu-latest
+    # Only deploy on main branch or tag pushes, not on PRs
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     steps:
       - uses: actions/checkout@v3
       
@@ -45,27 +58,128 @@ jobs:
           ssh-keyscan -H ${{ secrets.EC2_HOST || '52.69.83.83' }} >> ~/.ssh/known_hosts
       
       - name: Deploy to EC2
+        id: deploy
         run: |
-          ssh ${{ secrets.EC2_USER || 'ubuntu' }}@${{ secrets.EC2_HOST || '52.69.83.83' }} "
-            cd /opt/sns-ai-agent &&
-            git fetch --all &&
-            git reset --hard ${{ github.sha }} &&
-            docker compose pull || true &&
-            docker compose build --no-cache &&
-            docker compose up -d --remove-orphans
-          "
+          # Create log file for deployment
+          mkdir -p logs
+          DEPLOY_LOG="logs/deploy-$(date +%Y%m%d-%H%M%S).log"
+          
+          # Run deployment with logging
+          {
+            ssh ${{ secrets.EC2_USER || 'ubuntu' }}@${{ secrets.EC2_HOST || '52.69.83.83' }} "
+              cd /opt/sns-ai-agent &&
+              git fetch --all &&
+              git reset --hard ${{ github.sha }} &&
+              docker compose pull || true &&
+              docker compose build --no-cache &&
+              docker compose up -d --remove-orphans
+            "
+          } 2>&1 | tee "$DEPLOY_LOG"
+          
+          # Check if deployment was successful
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "::set-output name=status::failed"
+            echo "::set-output name=log_file::$DEPLOY_LOG"
+            exit 1
+          else
+            echo "::set-output name=status::success"
+          fi
       
       - name: Health Check
+        id: health_check
         run: |
+          # Create log file for health check
+          mkdir -p logs
+          HEALTH_LOG="logs/health-$(date +%Y%m%d-%H%M%S).log"
+          
           # Wait for services to start
+          echo "Waiting 30 seconds for services to start..." | tee -a "$HEALTH_LOG"
           sleep 30
           
           # Check backend health
+          echo "Checking backend health..." | tee -a "$HEALTH_LOG"
           HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST || '52.69.83.83' }}:8000/health)
+          echo "Health status: $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
           
           if [ "$HEALTH_STATUS" != "200" ]; then
-            echo "Health check failed with status $HEALTH_STATUS"
+            echo "Health check failed with status $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
+            echo "::set-output name=status::failed"
+            echo "::set-output name=log_file::$HEALTH_LOG"
             exit 1
           else
-            echo "Health check passed with status $HEALTH_STATUS"
+            echo "Health check passed with status $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
+            echo "::set-output name=status::success"
           fi
+      
+      - name: Upload deployment logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-logs
+          path: logs/
+      
+      - name: Create issue for deployment failure
+        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            
+            // Determine which step failed
+            const deployFailed = ${{ steps.deploy.outputs.status == 'failed' }};
+            const healthCheckFailed = ${{ steps.health_check.outputs.status == 'failed' }};
+            
+            // Get log file path
+            const logFile = deployFailed 
+              ? '${{ steps.deploy.outputs.log_file }}'
+              : '${{ steps.health_check.outputs.log_file }}';
+            
+            // Read log file if it exists
+            let logContent = '';
+            try {
+              if (logFile) {
+                logContent = fs.readFileSync(logFile, 'utf8');
+                // Truncate if too long
+                if (logContent.length > 5000) {
+                  logContent = logContent.substring(0, 5000) + '... (truncated)';
+                }
+              }
+            } catch (error) {
+              console.error(`Error reading log file: ${error}`);
+            }
+            
+            // Create issue title based on failure type
+            const title = deployFailed
+              ? '🚨 Deployment to EC2 failed'
+              : '🚨 Health check failed after deployment';
+            
+            // Create issue body
+            const body = `
+            ## Deployment Failure Report
+            
+            A deployment to EC2 has failed in the [${context.workflow}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) workflow.
+            
+            ### Failure Details
+            - **Commit**: [${context.sha.substring(0, 7)}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/commit/${context.sha})
+            - **Workflow Run**: [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            - **Failed Step**: ${deployFailed ? 'Deployment to EC2' : 'Health Check'}
+            
+            ### Error Logs
+            \`\`\`
+            ${logContent}
+            \`\`\`
+            
+            @devin-ai-integration please investigate this issue and create a PR with fixes.
+            `;
+            
+            // Create the issue
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['bug', 'deployment', 'automated']
+            });
+            
+            console.log(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
