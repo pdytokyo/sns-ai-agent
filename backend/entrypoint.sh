@@ -1,3 +1,4 @@
+#!/bin/bash
 
 echo "Running database initialization..."
 python init_database.py
