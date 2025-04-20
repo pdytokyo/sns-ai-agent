@@ -39,6 +39,24 @@ pip install -r requirements.txt
 OPENAI_API_KEY=<YOUR_API_KEY>
 ```
 
+## GitHub Container Registry (GHCR) の設定
+
+GitHub Actionsを使用してDockerイメージをビルドし、GitHub Container Registry (GHCR) にプッシュするには、以下の手順が必要です：
+
+1. GitHub Personal Access Token (PAT) を作成:
+   - GitHubの設定 > Developer settings > Personal access tokens > Tokens (classic) に移動
+   - 「Generate new token」をクリック
+   - 以下のスコープを選択: `read:packages`, `write:packages`, `delete:packages`
+   - トークンを生成し、安全な場所に保存
+
+2. リポジトリのシークレットを設定:
+   - リポジトリの設定 > Secrets and variables > Actions に移動
+   - 以下のシークレットを追加:
+     - `GHCR_USERNAME`: GitHubのユーザー名
+     - `GHCR_PAT`: 生成したPersonal Access Token
+
+これらの設定により、GitHub Actionsワークフローは自動的にDockerイメージをビルドし、GHCRにプッシュします。
+
 ## アプリケーションの実行
 
 アプリケーションをローカルで実行するには:

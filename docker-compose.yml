@@ -2,13 +2,10 @@ version: '3.8'
 
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ghcr.io/pdytokyo/sns-ai-agent/backend:${TAG:-latest}
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
       - backend_data:/app/data
     environment:
       - DATABASE_URL=sqlite:///./data/sns_ai_saas.db
@@ -17,13 +14,10 @@ services:
     restart: unless-stopped
 
   admin:
-    build:
-      context: ./admin
-      dockerfile: Dockerfile
+    image: ghcr.io/pdytokyo/sns-ai-agent/admin:${TAG:-latest}
     ports:
       - "8501:8501"
     volumes:
-      - ./admin:/app
       - backend_data:/app/data
     environment:
       - API_URL=http://backend:8000
@@ -33,11 +27,7 @@ services:
     restart: unless-stopped
     
   discordbot:
-    build:
-      context: ./bots
-      dockerfile: Dockerfile
-    volumes:
-      - ./bots:/app
+    image: ghcr.io/pdytokyo/sns-ai-agent/discordbot:${TAG:-latest}
     environment:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
