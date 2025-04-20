@@ -1,0 +1,67 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-asyncio
+      - name: Test with pytest
+        run: |
+          pytest
+
+  deploy:
+    name: Deploy to EC2
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_KEY || secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST || '52.69.83.83' }} >> ~/.ssh/known_hosts
+      
+      - name: Deploy to EC2
+        run: |
+          ssh ${{ secrets.EC2_USER || 'ubuntu' }}@${{ secrets.EC2_HOST || '52.69.83.83' }} "
+            cd /opt/sns-ai-agent &&
+            git fetch --all &&
+            git reset --hard ${{ github.sha }} &&
+            docker compose pull || true &&
+            docker compose build --no-cache &&
+            docker compose up -d --remove-orphans
+          "
+      
+      - name: Health Check
+        run: |
+          # Wait for services to start
+          sleep 30
+          
+          # Check backend health
+          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST || '52.69.83.83' }}:8000/health)
+          
+          if [ "$HEALTH_STATUS" != "200" ]; then
+            echo "Health check failed with status $HEALTH_STATUS"
+            exit 1
+          else
+            echo "Health check passed with status $HEALTH_STATUS"
+          fi
