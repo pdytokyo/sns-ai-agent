@@ -10,6 +10,11 @@ on:
     branches:
       - main
 
+# Add permissions for issue creation
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   test:
     name: Run Tests
@@ -70,6 +75,8 @@ jobs:
               cd /opt/sns-ai-agent &&
               git fetch --all &&
               git reset --hard ${{ github.sha }} &&
+              # Clean up old Docker images before building
+              docker system prune -af --filter 'until=24h' &&
               docker compose pull || true &&
               docker compose build --no-cache &&
               docker compose up -d --remove-orphans
