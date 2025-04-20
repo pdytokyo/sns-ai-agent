@@ -8,7 +8,7 @@ PROD="${SSH_PROD_HOST:-52.69.83.83}"
 # --- write key ---
 printf '%s
 ' "$SSH_PRIVATE_KEY" > /tmp/deploy_key.pem
-chmod 400 ./deploy_key.pem
+chmod 400 /tmp/deploy_key.pem
 
 deploy () {
   HOST="$1"
