@@ -4,21 +4,20 @@ import unittest
 import sqlite3
 from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from sqlmodel import Session, select, SQLModel, create_engine
 
-from backend.app.database import engine
-from sqlmodel import Session, select, SQLModel
+test_engine = create_engine("sqlite:///:memory:")
 
 from backend.app.models import User, Client, Video, Post, Script, Report, JobLog, Token
 
-SQLModel.metadata.create_all(engine)
+SQLModel.metadata.create_all(test_engine)
 
 class TestDatabaseSchema(unittest.TestCase):
     """Test the database schema to ensure all required tables exist."""
     
     def test_tables_exist(self):
         """Test that all required tables exist in the database."""
-        with Session(engine) as session:
+        with Session(test_engine) as session:
             tables = [
                 ("users", User),
                 ("clients", Client),
@@ -35,7 +34,7 @@ class TestDatabaseSchema(unittest.TestCase):
     
     def test_job_log_table_columns(self):
         """Test that the job_log table has all required columns."""
-        with Session(engine) as session:
+        with Session(test_engine) as session:
             test_job = JobLog(
                 job_type="test",
                 status="success",
