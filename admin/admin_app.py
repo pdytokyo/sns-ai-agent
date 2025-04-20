@@ -104,9 +104,17 @@ if menu == "Dashboard":
             post_count = session.exec(text("SELECT COUNT(*) FROM post")).first()[0]
             posted_count = session.exec(text("SELECT COUNT(*) FROM post WHERE posted = 1")).first()[0]
             
-            total_jobs = session.exec(text("SELECT COUNT(*) FROM job_log")).first()[0]
-            failed_jobs = session.exec(text("SELECT COUNT(*) FROM job_log WHERE status = 'failed'")).first()[0]
-            success_jobs = total_jobs - failed_jobs
+            try:
+                total_jobs = session.exec(text("SELECT COUNT(*) FROM job_log")).first()[0]
+                failed_jobs = session.exec(text("SELECT COUNT(*) FROM job_log WHERE status = 'failed'")).first()[0]
+                success_jobs = total_jobs - failed_jobs
+            except Exception as e:
+                if "no such table: job_log" in str(e).lower():
+                    total_jobs = 0
+                    failed_jobs = 0
+                    success_jobs = 0
+                else:
+                    raise
             
             client_job_stats = {}
             if st.session_state["jwt"] is not None:
@@ -498,15 +506,21 @@ elif menu == "Failed Jobs":
     else:
         try:
             with get_db_connection() as session:
-                failed_jobs = session.exec(text("""
-                    SELECT j.id, j.job_type, j.error_message, j.created_at, 
-                           c.name as client_name, u.username as user_name
-                    FROM job_log j
-                    LEFT JOIN client c ON j.client_id = c.id
-                    LEFT JOIN user u ON j.user_id = u.id
-                    WHERE j.status = 'failed'
-                    ORDER BY j.created_at DESC
-                """)).all()
+                try:
+                    failed_jobs = session.exec(text("""
+                        SELECT j.id, j.job_type, j.error_message, j.created_at, 
+                               c.name as client_name, u.username as user_name
+                        FROM job_log j
+                        LEFT JOIN client c ON j.client_id = c.id
+                        LEFT JOIN user u ON j.user_id = u.id
+                        WHERE j.status = 'failed'
+                        ORDER BY j.created_at DESC
+                    """)).all()
+                except Exception as e:
+                    if "no such table: job_log" in str(e).lower():
+                        failed_jobs = []
+                    else:
+                        raise
                 
                 if failed_jobs:
                     job_data = []
@@ -595,13 +609,19 @@ elif menu == "Usage Charts":
                         ORDER BY day
                     """)).all()
                     
-                    jobs_by_day = session.exec(text(f"""
-                        SELECT date(created_at) as day, status, COUNT(*) as count
-                        FROM job_log
-                        WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
-                        GROUP BY day, status
-                        ORDER BY day
-                    """)).all()
+                    try:
+                        jobs_by_day = session.exec(text(f"""
+                            SELECT date(created_at) as day, status, COUNT(*) as count
+                            FROM job_log
+                            WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
+                            GROUP BY day, status
+                            ORDER BY day
+                        """)).all()
+                    except Exception as e:
+                        if "no such table: job_log" in str(e).lower():
+                            jobs_by_day = []
+                        else:
+                            raise
                     
                     if videos_by_day:
                         videos_df = pd.DataFrame(videos_by_day, columns=["day", "count"])
@@ -633,13 +653,19 @@ elif menu == "Usage Charts":
                     else:
                         st.info("No job data available for the selected period")
                     
-                    job_types = session.exec(text(f"""
-                        SELECT job_type, COUNT(*) as count
-                        FROM job_log
-                        WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
-                        GROUP BY job_type
-                        ORDER BY count DESC
-                    """)).all()
+                    try:
+                        job_types = session.exec(text(f"""
+                            SELECT job_type, COUNT(*) as count
+                            FROM job_log
+                            WHERE created_at BETWEEN '{start_datetime.isoformat()}' AND '{end_datetime.isoformat()}'
+                            GROUP BY job_type
+                            ORDER BY count DESC
+                        """)).all()
+                    except Exception as e:
+                        if "no such table: job_log" in str(e).lower():
+                            job_types = []
+                        else:
+                            raise
                     
                     if job_types:
                         job_types_df = pd.DataFrame(job_types, columns=["job_type", "count"])

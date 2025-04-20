@@ -18,8 +18,19 @@ COPY . .
 # Create data directory
 RUN mkdir -p data uploads
 
+# Make init_database.py executable
+RUN chmod +x init_database.py
+
 # Expose port for FastAPI
 EXPOSE 8000
 
-# Command to run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Create entrypoint script
+RUN echo '#!/bin/bash\n\
+echo "Running database initialization..."\n\
+python init_database.py\n\
+echo "Starting FastAPI application..."\n\
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000\n\
+' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+# Use entrypoint script
+ENTRYPOINT ["/app/entrypoint.sh"]
