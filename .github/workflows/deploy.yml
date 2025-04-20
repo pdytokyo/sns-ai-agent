@@ -61,6 +61,8 @@ jobs:
       
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
+        # Only attempt login if secrets are available (typically not in PR builds from forks)
+        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && (secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '')) }}
         with:
           registry: ghcr.io
           username: ${{ secrets.GHCR_USERNAME }}
@@ -71,10 +73,10 @@ jobs:
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/backend:${{ github.ref_name }}
+          # Only push if not a PR and secrets are available
+          push: ${{ github.event_name != 'pull_request' && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
+          # Only add tags if pushing
+          tags: ${{ github.event_name != 'pull_request' && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' && format('ghcr.io/{0}/backend:{1},ghcr.io/{0}/backend:{2}', github.repository, github.sha, github.ref_name) || '' }}
           provenance: false
       
       - name: Build and push admin image
@@ -82,10 +84,10 @@ jobs:
         with:
           context: ./admin
           file: ./admin/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ghcr.io/${{ github.repository }}/admin:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/admin:${{ github.ref_name }}
+          # Only push if not a PR and secrets are available
+          push: ${{ github.event_name != 'pull_request' && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
+          # Only add tags if pushing
+          tags: ${{ github.event_name != 'pull_request' && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' && format('ghcr.io/{0}/admin:{1},ghcr.io/{0}/admin:{2}', github.repository, github.sha, github.ref_name) || '' }}
           provenance: false
       
       - name: Build and push discordbot image
@@ -93,10 +95,10 @@ jobs:
         with:
           context: ./bots
           file: ./bots/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ghcr.io/${{ github.repository }}/discordbot:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/discordbot:${{ github.ref_name }}
+          # Only push if not a PR and secrets are available
+          push: ${{ github.event_name != 'pull_request' && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
+          # Only add tags if pushing
+          tags: ${{ github.event_name != 'pull_request' && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' && format('ghcr.io/{0}/discordbot:{1},ghcr.io/{0}/discordbot:{2}', github.repository, github.sha, github.ref_name) || '' }}
           provenance: false
 
   deploy:
