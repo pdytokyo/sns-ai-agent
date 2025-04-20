@@ -4,11 +4,16 @@ import unittest
 import sqlite3
 from pathlib import Path
 
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from sqlmodel import Session, select, SQLModel, create_engine
 
 test_engine = create_engine("sqlite:///:memory:")
 
-from backend.app.models import User, Client, Video, Post, Script, Report, JobLog, Token
+from app.models import User, Client, Video, Post, Script, Report, JobLog, Token
 
 SQLModel.metadata.create_all(test_engine)
 
