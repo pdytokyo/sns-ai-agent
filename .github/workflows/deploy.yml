@@ -34,7 +34,7 @@ jobs:
           pytest -q
       - name: Upload test logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-logs
           path: |
@@ -78,11 +78,11 @@ jobs:
           
           # Check if deployment was successful
           if [ ${PIPESTATUS[0]} -ne 0 ]; then
-            echo "::set-output name=status::failed"
-            echo "::set-output name=log_file::$DEPLOY_LOG"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "log_file=$DEPLOY_LOG" >> $GITHUB_OUTPUT
             exit 1
           else
-            echo "::set-output name=status::success"
+            echo "status=success" >> $GITHUB_OUTPUT
           fi
       
       - name: Health Check
@@ -103,17 +103,17 @@ jobs:
           
           if [ "$HEALTH_STATUS" != "200" ]; then
             echo "Health check failed with status $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
-            echo "::set-output name=status::failed"
-            echo "::set-output name=log_file::$HEALTH_LOG"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "log_file=$HEALTH_LOG" >> $GITHUB_OUTPUT
             exit 1
           else
             echo "Health check passed with status $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
-            echo "::set-output name=status::success"
+            echo "status=success" >> $GITHUB_OUTPUT
           fi
       
       - name: Upload deployment logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: deployment-logs
           path: logs/
@@ -127,13 +127,13 @@ jobs:
             const fs = require('fs');
             
             // Determine which step failed
-            const deployFailed = ${{ steps.deploy.outputs.status == 'failed' }};
-            const healthCheckFailed = ${{ steps.health_check.outputs.status == 'failed' }};
+            const deployFailed = "${{ steps.deploy.outputs.status }}" === "failed";
+            const healthCheckFailed = "${{ steps.health_check.outputs.status }}" === "failed";
             
             // Get log file path
             const logFile = deployFailed 
-              ? '${{ steps.deploy.outputs.log_file }}'
-              : '${{ steps.health_check.outputs.log_file }}';
+              ? "${{ steps.deploy.outputs.log_file }}"
+              : "${{ steps.health_check.outputs.log_file }}";
             
             // Read log file if it exists
             let logContent = '';
