@@ -51,8 +51,8 @@ jobs:
     name: Build and Push Docker Images
     needs: test
     runs-on: ubuntu-latest
-    # Only build on main branch, tags, or PRs to main
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+    # Only build if secrets are available or it's a PR from the same repo
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '')
     steps:
       - uses: actions/checkout@v3
       
@@ -105,8 +105,8 @@ jobs:
     name: Deploy to EC2
     needs: build
     runs-on: ubuntu-latest
-    # Only deploy on main branch or tag pushes, not on PRs
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    # Only deploy if secrets are available or it's a PR from the same repo
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '')
     steps:
       - name: Deploy to EC2
         id: deploy
