@@ -48,7 +48,6 @@ jobs:
             .pytest_cache/
 
   build:
-    id: build
     name: Build and Push Docker Images
     needs: test
     runs-on: ubuntu-latest
