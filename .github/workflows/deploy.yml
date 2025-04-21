@@ -52,7 +52,11 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     # Only build if secrets are available or it's a PR from the same repo
-    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '') }}
+    if: >
+      ${{ github.event_name == 'push' ||
+          (github.event_name == 'pull_request' &&
+           github.event.pull_request.head.repo.full_name == github.repository &&
+           secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '') }}
     steps:
       - uses: actions/checkout@v3
       
@@ -106,7 +110,12 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     # Only deploy if secrets are available or it's a PR from the same repo
-    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '') }}
+    if: >
+      ${{ needs.build.result == 'success' &&
+          ( github.event_name == 'push' ||
+            (github.event_name == 'pull_request' &&
+             github.event.pull_request.head.repo.full_name == github.repository &&
+             secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '') ) }}
     steps:
       - name: Deploy to EC2
         id: deploy
