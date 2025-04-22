@@ -70,7 +70,8 @@ prompt = ChatPromptTemplate.from_messages([
     
     Always respond in a helpful and friendly manner.
     """),
-    ("human", "{input}")
+    ("human", "{input}"),
+    ("agent", "{agent_scratchpad}")
 ])
 
 agent = create_openai_tools_agent(llm, tools, prompt)

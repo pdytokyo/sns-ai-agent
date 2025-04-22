@@ -143,8 +143,8 @@ jobs:
             # Pull the latest images
             docker compose pull backend admin discordbot
             
-            # Start the containers
-            docker compose up -d
+            # Start the containers using production compose file
+            docker compose -f docker-compose.prod.yml up -d
       
       - name: Health Check
         id: health_check
@@ -171,6 +171,28 @@ jobs:
             echo "Health check passed with status $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
             echo "status=success" >> $GITHUB_OUTPUT
           fi
+          
+      - name: Check Docker Container Status
+        id: container_check
+        uses: appleboy/ssh-action@v0.1.7
+        if: ${{ env.HAS_GHCR_SECRETS == 'true' }}
+        with:
+          host: ${{ secrets.EC2_HOST || '52.69.83.83' }}
+          username: ${{ secrets.EC2_USER || 'ubuntu' }}
+          key: ${{ secrets.EC2_KEY || secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /opt/sns-ai-agent
+            echo "Checking container status..."
+            CONTAINER_STATUS=$(docker compose ps --format json)
+            echo "$CONTAINER_STATUS"
+            
+            # Check if all containers are running
+            if ! echo "$CONTAINER_STATUS" | grep -q '"State":"running"'; then
+              echo "Container check failed: Not all containers are running"
+              exit 1
+            else
+              echo "Container check passed: All containers are running"
+            fi
       
       - name: Upload deployment logs
         if: always()
