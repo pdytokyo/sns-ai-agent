@@ -51,8 +51,8 @@ jobs:
     name: Build and Push Docker Images
     needs: test
     runs-on: ubuntu-latest
-    # Only build if secrets are available or it's a PR from the same repo
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '') }}
+    # Only build if it's a push event or a PR from the same repo
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
     steps:
       - uses: actions/checkout@v3
       
@@ -70,6 +70,8 @@ jobs:
       
       - name: Build and push backend image
         uses: docker/build-push-action@v5
+        # Only attempt push if secrets are available
+        if: ${{ github.event_name != 'pull_request' || (secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '') }}
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -81,6 +83,8 @@ jobs:
       
       - name: Build and push admin image
         uses: docker/build-push-action@v5
+        # Only attempt push if secrets are available
+        if: ${{ github.event_name != 'pull_request' || (secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '') }}
         with:
           context: ./admin
           file: ./admin/Dockerfile
@@ -92,6 +96,8 @@ jobs:
       
       - name: Build and push discordbot image
         uses: docker/build-push-action@v5
+        # Only attempt push if secrets are available
+        if: ${{ github.event_name != 'pull_request' || (secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '') }}
         with:
           context: ./bots
           file: ./bots/Dockerfile
@@ -105,12 +111,14 @@ jobs:
     name: Deploy to EC2
     needs: build
     runs-on: ubuntu-latest
-    # Only deploy if secrets are available or it's a PR from the same repo
-    if: ${{ needs.build.result == 'success' && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '')) }}
+    # Only deploy if build was successful and it's a push event or a PR from the same repo
+    if: ${{ needs.build.result == 'success' && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
     steps:
       - name: Deploy to EC2
         id: deploy
         uses: appleboy/ssh-action@v0.1.7
+        # Only run deploy if secrets are available
+        if: ${{ secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
         with:
           host: ${{ secrets.EC2_HOST || '52.69.83.83' }}
           username: ${{ secrets.EC2_USER || 'ubuntu' }}
