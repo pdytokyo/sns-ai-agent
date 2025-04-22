@@ -53,6 +53,8 @@ jobs:
     runs-on: ubuntu-latest
     # Only build if it's a push event or a PR from the same repo
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
+    env:
+      HAS_GHCR_SECRETS: ${{ secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
     steps:
       - uses: actions/checkout@v3
       
@@ -62,7 +64,7 @@ jobs:
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         # Only attempt login if secrets are available (typically not in PR builds from forks)
-        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && (secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '')) }}
+        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && env.HAS_GHCR_SECRETS == 'true') }}
         with:
           registry: ghcr.io
           username: ${{ secrets.GHCR_USERNAME }}
@@ -71,40 +73,40 @@ jobs:
       - name: Build and push backend image
         uses: docker/build-push-action@v5
         # Only attempt push if secrets are available
-        if: ${{ github.event_name != 'pull_request' || (secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '') }}
+        if: ${{ github.event_name != 'pull_request' || env.HAS_GHCR_SECRETS == 'true' }}
         with:
           context: ./backend
           file: ./backend/Dockerfile
           # Only push if not a PR and secrets are available
-          push: ${{ github.event_name != 'pull_request' && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
+          push: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' }}
           # Only add tags if pushing
-          tags: ${{ github.event_name != 'pull_request' && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' && format('ghcr.io/{0}/backend:{1},ghcr.io/{0}/backend:{2}', github.repository, github.sha, github.ref_name) || '' }}
+          tags: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' && format('ghcr.io/{0}/backend:{1},ghcr.io/{0}/backend:{2}', github.repository, github.sha, github.ref_name) || '' }}
           provenance: false
       
       - name: Build and push admin image
         uses: docker/build-push-action@v5
         # Only attempt push if secrets are available
-        if: ${{ github.event_name != 'pull_request' || (secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '') }}
+        if: ${{ github.event_name != 'pull_request' || env.HAS_GHCR_SECRETS == 'true' }}
         with:
           context: ./admin
           file: ./admin/Dockerfile
           # Only push if not a PR and secrets are available
-          push: ${{ github.event_name != 'pull_request' && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
+          push: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' }}
           # Only add tags if pushing
-          tags: ${{ github.event_name != 'pull_request' && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' && format('ghcr.io/{0}/admin:{1},ghcr.io/{0}/admin:{2}', github.repository, github.sha, github.ref_name) || '' }}
+          tags: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' && format('ghcr.io/{0}/admin:{1},ghcr.io/{0}/admin:{2}', github.repository, github.sha, github.ref_name) || '' }}
           provenance: false
       
       - name: Build and push discordbot image
         uses: docker/build-push-action@v5
         # Only attempt push if secrets are available
-        if: ${{ github.event_name != 'pull_request' || (secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '') }}
+        if: ${{ github.event_name != 'pull_request' || env.HAS_GHCR_SECRETS == 'true' }}
         with:
           context: ./bots
           file: ./bots/Dockerfile
           # Only push if not a PR and secrets are available
-          push: ${{ github.event_name != 'pull_request' && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
+          push: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' }}
           # Only add tags if pushing
-          tags: ${{ github.event_name != 'pull_request' && secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' && format('ghcr.io/{0}/discordbot:{1},ghcr.io/{0}/discordbot:{2}', github.repository, github.sha, github.ref_name) || '' }}
+          tags: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' && format('ghcr.io/{0}/discordbot:{1},ghcr.io/{0}/discordbot:{2}', github.repository, github.sha, github.ref_name) || '' }}
           provenance: false
 
   deploy:
@@ -113,12 +115,14 @@ jobs:
     runs-on: ubuntu-latest
     # Only deploy if build was successful and it's a push event or a PR from the same repo
     if: ${{ needs.build.result == 'success' && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
+    env:
+      HAS_GHCR_SECRETS: ${{ secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
     steps:
       - name: Deploy to EC2
         id: deploy
         uses: appleboy/ssh-action@v0.1.7
         # Only run deploy if secrets are available
-        if: ${{ secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
+        if: ${{ env.HAS_GHCR_SECRETS == 'true' }}
         with:
           host: ${{ secrets.EC2_HOST || '52.69.83.83' }}
           username: ${{ secrets.EC2_USER || 'ubuntu' }}
