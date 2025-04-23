@@ -127,7 +127,7 @@ jobs:
           username:    ${{ secrets.EC2_USER }}
           key:         ${{ secrets.EC2_KEY }}        # base64-encoded
           key_is_b64:  true
-          fingerprint: ${{ secrets.EC2_KNOWN_HOST }} # from ssh-keyscan
+          known_hosts: ${{ secrets.EC2_KNOWN_HOST }} # from ssh-keyscan
           script: |
             set -e
             cd /opt/sns-ai-agent
@@ -171,7 +171,7 @@ jobs:
           username:    ${{ secrets.EC2_USER }}
           key:         ${{ secrets.EC2_KEY }}        # base64-encoded
           key_is_b64:  true
-          fingerprint: ${{ secrets.EC2_KNOWN_HOST }} # from ssh-keyscan
+          known_hosts: ${{ secrets.EC2_KNOWN_HOST }} # from ssh-keyscan
           script: |
             cd /opt/sns-ai-agent
             echo "Checking container status..."
