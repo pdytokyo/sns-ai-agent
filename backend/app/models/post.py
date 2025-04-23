@@ -1,9 +1,12 @@
 from sqlmodel import Field, SQLModel, Relationship
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 
 from backend.app.models import Base
 from backend.app.models.client import Client
+
+if TYPE_CHECKING:
+    from backend.app.models.video import Video
 
 class Post(SQLModel, Base, table=True):
     __tablename__ = "posts"

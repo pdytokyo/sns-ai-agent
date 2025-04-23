@@ -1,9 +1,14 @@
 from sqlmodel import Field, SQLModel, Relationship
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 import uuid
 
 from backend.app.models import Base
+
+if TYPE_CHECKING:
+    from backend.app.models.client import Client
+    from backend.app.models.job_log import JobLog
+    from backend.app.models.token import Token
 
 class User(SQLModel, Base, table=True):
     __tablename__ = "users"

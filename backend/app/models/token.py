@@ -1,8 +1,11 @@
 from sqlmodel import Field, SQLModel, Relationship
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 
 from backend.app.models import Base
+
+if TYPE_CHECKING:
+    from backend.app.models.user import User
 
 class Token(SQLModel, Base, table=True):
     __tablename__ = "tokens"

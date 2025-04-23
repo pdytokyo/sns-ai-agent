@@ -1,9 +1,17 @@
 from sqlmodel import Field, SQLModel, Relationship, Column, JSON
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from datetime import datetime
 import json
 
 from backend.app.models import Base
+
+if TYPE_CHECKING:
+    from backend.app.models.user import User
+    from backend.app.models.video import Video
+    from backend.app.models.post import Post
+    from backend.app.models.script import Script
+    from backend.app.models.report import Report
+    from backend.app.models.job_log import JobLog
 
 class Client(SQLModel, Base, table=True):
     __tablename__ = "clients"
