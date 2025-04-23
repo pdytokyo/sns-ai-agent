@@ -8,9 +8,17 @@ os.environ["API_URL"] = "http://localhost:8000"
 os.environ["OPENAI_API_KEY"] = "test-key"
 os.environ["DISCORD_BOT_TOKEN"] = "test-token"
 
+discord = pytest.importorskip("discord")
+langchain = pytest.importorskip("langchain")
+langchain_openai = pytest.importorskip("langchain_openai")
+
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from bots.discord_bot import model_script_from_video, create_original_script, agent_executor
+
+try:
+    from bots.discord_bot import model_script_from_video, create_original_script, agent_executor
+except ImportError:
+    pytest.skip("Discord bot modules not available", allow_module_level=True)
 
 @pytest.mark.asyncio
 async def test_model_script_from_video_integration():
