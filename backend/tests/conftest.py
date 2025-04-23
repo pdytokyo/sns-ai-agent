@@ -7,7 +7,6 @@ from sqlmodel import SQLModel, create_engine
 from alembic.config import Config
 from alembic import command
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 TEST_DB_PATH = tempfile.gettempdir() + "/test_app.db"
 TEST_DB_URL = f"sqlite:///{TEST_DB_PATH}"
