@@ -4,6 +4,9 @@ from sqlmodel import Field, SQLModel, Relationship, Column, JSON
 from pydantic import EmailStr, validator
 import json
 from sqlalchemy import MetaData, Table
+from sqlalchemy.orm import declarative_base
+
+Base = declarative_base()
 
 class UserBase(SQLModel):
     email: EmailStr
@@ -11,7 +14,8 @@ class UserBase(SQLModel):
     is_active: bool = True
     is_admin: bool = False
 
-class User(UserBase, table=True):
+class User(UserBase, Base, table=True):
+    __tablename__ = "users"
     __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     hashed_password: str
@@ -29,13 +33,14 @@ class UserRead(UserBase):
     id: int
     created_at: datetime
 
-class Token(SQLModel, table=True):
+class Token(SQLModel, Base, table=True):
+    __tablename__ = "tokens"
     __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     access_token: str
     token_type: str = "bearer"
     expires_at: datetime
-    user_id: int = Field(foreign_key="user.id")
+    user_id: int = Field(foreign_key="users.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     user: User = Relationship(back_populates="tokens")
@@ -58,10 +63,11 @@ class ClientBase(SQLModel):
                 return {}
         return v or {}
 
-class Client(ClientBase, table=True):
+class Client(ClientBase, Base, table=True):
+    __tablename__ = "clients"
     __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="user.id")
+    user_id: int = Field(foreign_key="users.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
@@ -87,10 +93,11 @@ class VideoBase(SQLModel):
     processed: bool = False
     processing_error: Optional[str] = None
 
-class Video(VideoBase, table=True):
+class Video(VideoBase, Base, table=True):
+    __tablename__ = "videos"
     __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
-    client_id: int = Field(foreign_key="client.id")
+    client_id: int = Field(foreign_key="clients.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
@@ -111,10 +118,11 @@ class ScriptBase(SQLModel):
     hook: Optional[str] = None
     target_platform: str = "instagram"
 
-class Script(ScriptBase, table=True):
+class Script(ScriptBase, Base, table=True):
+    __tablename__ = "scripts"
     __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
-    client_id: int = Field(foreign_key="client.id")
+    client_id: int = Field(foreign_key="clients.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
@@ -136,11 +144,12 @@ class PostBase(SQLModel):
     post_error: Optional[str] = None
     platform: str = "instagram"
 
-class Post(PostBase, table=True):
+class Post(PostBase, Base, table=True):
+    __tablename__ = "posts"
     __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
-    client_id: int = Field(foreign_key="client.id")
-    video_id: Optional[int] = Field(default=None, foreign_key="video.id")
+    client_id: int = Field(foreign_key="clients.id")
+    video_id: Optional[int] = Field(default=None, foreign_key="videos.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
@@ -163,10 +172,11 @@ class ReportBase(SQLModel):
     period_start: Optional[datetime] = None
     period_end: Optional[datetime] = None
 
-class Report(ReportBase, table=True):
+class Report(ReportBase, Base, table=True):
+    __tablename__ = "reports"
     __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
-    client_id: int = Field(foreign_key="client.id")
+    client_id: int = Field(foreign_key="clients.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     client: Client = Relationship(back_populates="reports")
@@ -179,14 +189,15 @@ class ReportRead(ReportBase):
     client_id: int
     created_at: datetime
 
-class JobLog(SQLModel, table=True):
+class JobLog(SQLModel, Base, table=True):
+    __tablename__ = "job_logs"
     __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     job_type: str
     status: str
     error_message: Optional[str] = None
-    client_id: Optional[int] = Field(default=None, foreign_key="client.id")
-    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    client_id: Optional[int] = Field(default=None, foreign_key="clients.id")
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     client: Optional[Client] = Relationship(back_populates="job_logs")
