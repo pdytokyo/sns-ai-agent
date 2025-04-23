@@ -44,7 +44,7 @@ jobs:
         with:
           name: test-logs
           path: |
-            pytest-logs.txt
+            pytest-logs.xml
             .pytest_cache/
 
   build:
