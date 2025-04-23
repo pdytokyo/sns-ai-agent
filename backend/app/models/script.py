@@ -1,0 +1,21 @@
+from sqlmodel import Field, SQLModel, Relationship
+from typing import Optional
+from datetime import datetime
+
+from backend.app.models import Base
+from backend.app.models.client import Client
+
+class Script(SQLModel, Base, table=True):
+    __tablename__ = "scripts"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str
+    content: str
+    keywords: Optional[str] = None
+    hook: Optional[str] = None
+    target_platform: str = "instagram"
+    client_id: int = Field(default=None, foreign_key="clients.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    client: Optional[Client] = Relationship(back_populates="scripts")

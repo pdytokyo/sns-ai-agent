@@ -3,9 +3,9 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
-from app.main import app
-from app.database import get_session
-from app.models import User, UserCreate
+from backend.app.main import app
+from backend.app.database import get_session
+from backend.app.models import User, UserCreate
 
 @pytest.fixture(name="session")
 def session_fixture():
@@ -76,7 +76,7 @@ def test_register_duplicate_username(client: TestClient, session: Session):
     assert "Username already registered" in response.json()["detail"]
 
 def test_login(client: TestClient, session: Session):
-    from app.auth import get_password_hash
+    from backend.app.auth import get_password_hash
     hashed_password = get_password_hash("password123")
     user = User(
         username="loginuser",
@@ -100,7 +100,7 @@ def test_login(client: TestClient, session: Session):
     assert data["token_type"] == "bearer"
 
 def test_login_invalid_credentials(client: TestClient, session: Session):
-    from app.auth import get_password_hash
+    from backend.app.auth import get_password_hash
     hashed_password = get_password_hash("password123")
     user = User(
         username="loginuser2",

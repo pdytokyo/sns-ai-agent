@@ -17,8 +17,8 @@ os.environ["OPENAI_API_KEY"] = "sk-dummy-key-for-testing"
 
 test_engine = create_engine(TEST_DB_URL)
 
-import backend.app.database
-backend.app.database.engine = test_engine
+from backend.app import database
+database.engine = test_engine
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_database():

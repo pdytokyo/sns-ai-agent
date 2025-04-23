@@ -3,10 +3,10 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
-from app.main import app
-from app.database import get_session
-from app.models import User, Client, ClientCreate
-from app.auth import get_password_hash
+from backend.app.main import app
+from backend.app.database import get_session
+from backend.app.models import User, Client, ClientCreate
+from backend.app.auth import get_password_hash
 
 @pytest.fixture(name="session")
 def session_fixture():
