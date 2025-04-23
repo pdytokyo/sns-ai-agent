@@ -118,6 +118,17 @@ jobs:
     env:
       HAS_GHCR_SECRETS: ${{ secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
     steps:
+      - name: Set deployment tag
+        id: set-tag
+        run: |
+          # For PRs, use pr-{number} format instead of {number}/merge which contains invalid slash
+          if [[ "${{ github.ref_name }}" == *"/"* ]]; then
+            echo "DEPLOY_TAG=pr-$(echo ${{ github.ref_name }} | cut -d'/' -f1)" >> $GITHUB_ENV
+          else
+            echo "DEPLOY_TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+          fi
+          echo "Using tag: ${{ env.DEPLOY_TAG }}"
+      
       - name: Deploy to EC2
         id: deploy
         uses: appleboy/ssh-action@v0.1.7
@@ -127,6 +138,7 @@ jobs:
           host: ${{ secrets.EC2_HOST || '52.69.83.83' }}
           username: ${{ secrets.EC2_USER || 'ubuntu' }}
           key: ${{ secrets.EC2_KEY || secrets.SSH_PRIVATE_KEY }}
+          envs: DEPLOY_TAG
           script: |
             # Login to GitHub Container Registry
             docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} -p ${{ secrets.GHCR_PAT }}
@@ -138,12 +150,7 @@ jobs:
             cd /opt/sns-ai-agent
             
             # Set the TAG environment variable for docker-compose
-            # For PRs, use pr-{number} format instead of {number}/merge which contains invalid slash
-            if [[ "${{ github.ref_name }}" == *"/"* ]]; then
-              export TAG="pr-$(echo ${{ github.ref_name }} | cut -d'/' -f1)"
-            else
-              export TAG=${{ github.ref_name }}
-            fi
+            export TAG=$DEPLOY_TAG
             
             # Pull the latest images
             docker compose pull backend admin discordbot
