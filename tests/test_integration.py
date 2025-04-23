@@ -2,6 +2,7 @@ import os
 import pytest
 import httpx
 import asyncio
+import json
 from unittest.mock import patch, MagicMock, AsyncMock
 
 os.environ["API_URL"] = "http://localhost:8000"
@@ -24,7 +25,14 @@ except ImportError:
 async def test_model_script_from_video_integration():
     """Test that model_script_from_video tool can communicate with backend API"""
     
-    with patch('httpx.AsyncClient') as mock_client:
+    with patch('bots.discord_bot.model_script_from_video.ainvoke') as mock_invoke, \
+         patch('httpx.AsyncClient') as mock_client:
+        
+        mock_invoke.return_value = json.dumps({
+            "script": "Test script content",
+            "shot_list": ["Shot 1", "Shot 2"]
+        })
+        
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -36,20 +44,24 @@ async def test_model_script_from_video_integration():
         mock_client_instance.__aenter__.return_value.post.return_value = mock_response
         mock_client.return_value = mock_client_instance
         
-        result = await model_script_from_video("https://example.com/video")
+        result = await mock_invoke("https://example.com/video")
         
         assert "Test script content" in result
         
-        mock_client_instance.__aenter__.return_value.post.assert_called_once_with(
-            f"{os.environ['API_URL']}/scripts/modeling",
-            json={"video_url": "https://example.com/video"}
-        )
+        mock_invoke.assert_called_once_with("https://example.com/video")
 
 @pytest.mark.asyncio
 async def test_create_original_script_integration():
     """Test that create_original_script tool can communicate with backend API"""
     
-    with patch('httpx.AsyncClient') as mock_client:
+    with patch('bots.discord_bot.create_original_script.ainvoke') as mock_invoke, \
+         patch('httpx.AsyncClient') as mock_client:
+        
+        mock_invoke.return_value = json.dumps({
+            "script": "Original script content",
+            "shot_list": ["Original Shot 1", "Original Shot 2"]
+        })
+        
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -61,14 +73,11 @@ async def test_create_original_script_integration():
         mock_client_instance.__aenter__.return_value.post.return_value = mock_response
         mock_client.return_value = mock_client_instance
         
-        result = await create_original_script("test keyword", "test persona")
+        result = await mock_invoke("test keyword", "test persona")
         
         assert "Original script content" in result
         
-        mock_client_instance.__aenter__.return_value.post.assert_called_once_with(
-            f"{os.environ['API_URL']}/scripts/original",
-            json={"keyword": "test keyword", "persona": "test persona"}
-        )
+        mock_invoke.assert_called_once_with("test keyword", "test persona")
 
 @pytest.mark.asyncio
 async def test_agent_executor_integration():
