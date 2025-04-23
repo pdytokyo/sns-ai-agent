@@ -121,6 +121,8 @@ jobs:
       - name: Deploy to EC2
         id: deploy
         uses: appleboy/ssh-action@v0.1.7
+        # Only run deploy if secrets are available
+        if: ${{ env.HAS_GHCR_SECRETS == 'true' }}
         with:
           host:        ${{ secrets.EC2_HOST }}
           port:        ${{ secrets.EC2_PORT }}
