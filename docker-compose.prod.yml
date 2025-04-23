@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  backend:
+    image: ghcr.io/pdytokyo/sns-ai-agent/backend:${TAG:-latest}
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/sns_ai_saas.db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - IG_COOKIE_FILE=${IG_COOKIE_FILE:-./data/ig_cookies.txt}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  admin:
+    image: ghcr.io/pdytokyo/sns-ai-agent/admin:${TAG:-latest}
+    ports:
+      - "8501:8501"
+    volumes:
+      - backend_data:/app/data
+    environment:
+      - API_URL=http://backend:8000
+      - DATABASE_URL=sqlite:///./data/sns_ai_saas.db
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    
+  discordbot:
+    image: ghcr.io/pdytokyo/sns-ai-agent/discordbot:${TAG:-latest}
+    environment:
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - API_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  backend_data:
+    driver: local
