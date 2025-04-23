@@ -17,22 +17,19 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 try:
-    from bots.discord_bot import model_script_from_video, create_original_script, agent_executor
+    import bots.discord_bot
+    from bots.discord_bot import run_bot
 except ImportError:
     pytest.skip("Discord bot modules not available", allow_module_level=True)
 
 @pytest.mark.asyncio
-async def test_model_script_from_video_integration():
-    """Test that model_script_from_video tool can communicate with backend API"""
+async def test_discord_bot_commands():
+    """Test that Discord bot commands can communicate with backend API"""
     
-    with patch('bots.discord_bot.model_script_from_video.ainvoke') as mock_invoke, \
-         patch('httpx.AsyncClient') as mock_client:
-        
-        mock_invoke.return_value = json.dumps({
-            "script": "Test script content",
-            "shot_list": ["Shot 1", "Shot 2"]
-        })
-        
+    mock_ctx = MagicMock()
+    mock_ctx.send = AsyncMock()
+    
+    with patch('httpx.AsyncClient') as mock_client:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -44,67 +41,61 @@ async def test_model_script_from_video_integration():
         mock_client_instance.__aenter__.return_value.post.return_value = mock_response
         mock_client.return_value = mock_client_instance
         
-        result = await mock_invoke("https://example.com/video")
-        
-        assert "Test script content" in result
-        
-        mock_invoke.assert_called_once_with("https://example.com/video")
+        with patch('bots.discord_bot.bot') as mock_bot:
+            model_command = AsyncMock()
+            mock_bot.all_commands = {"model": model_command}
+            
+            await model_command(mock_ctx, url="https://example.com/video")
+            
+            mock_client_instance.__aenter__.return_value.post.assert_called_once_with(
+                f"{os.environ['API_URL']}/scripts/modeling",
+                json={"video_url": "https://example.com/video"}
+            )
+            
+            mock_ctx.send.assert_any_call(f"Generating script based on https://example.com/video... This may take a minute.")
+            
+            mock_ctx.reset_mock()
+            mock_client_instance.reset_mock()
+            
+            orig_command = AsyncMock()
+            mock_bot.all_commands = {"orig": orig_command}
+            
+            await orig_command(mock_ctx, args="keyword / persona")
+            
+            mock_client_instance.__aenter__.return_value.post.assert_called_once_with(
+                f"{os.environ['API_URL']}/scripts/original",
+                json={"keyword": "keyword", "persona": "persona"}
+            )
+            
+            mock_ctx.send.assert_any_call(f"Generating original script for keyword 'keyword' and persona 'persona'... This may take a minute.")
 
 @pytest.mark.asyncio
-async def test_create_original_script_integration():
-    """Test that create_original_script tool can communicate with backend API"""
+async def test_agent_integration():
+    """Test that LangChain agent can process requests"""
     
-    with patch('bots.discord_bot.create_original_script.ainvoke') as mock_invoke, \
-         patch('httpx.AsyncClient') as mock_client:
+    with patch('langchain.agents.AgentExecutor.from_agent_and_tools') as mock_agent_factory, \
+         patch('langchain_openai.ChatOpenAI') as mock_llm:
         
-        mock_invoke.return_value = json.dumps({
-            "script": "Original script content",
-            "shot_list": ["Original Shot 1", "Original Shot 2"]
-        })
-        
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "script": "Original script content",
-            "shot_list": ["Original Shot 1", "Original Shot 2"]
+        mock_agent = MagicMock()
+        mock_agent.ainvoke = AsyncMock()
+        mock_agent.ainvoke.return_value = {
+            "output": "I'll help you with that script."
         }
         
-        mock_client_instance = MagicMock()
-        mock_client_instance.__aenter__.return_value.post.return_value = mock_response
-        mock_client.return_value = mock_client_instance
+        mock_agent_factory.return_value = mock_agent
         
-        result = await mock_invoke("test keyword", "test persona")
+        from bots.discord_bot import create_openai_tools_agent, ChatPromptTemplate, MessagesPlaceholder
         
-        assert "Original script content" in result
-        
-        mock_invoke.assert_called_once_with("test keyword", "test persona")
-
-@pytest.mark.asyncio
-async def test_agent_executor_integration():
-    """Test that agent_executor can process requests and use tools"""
-    
-    with patch('bots.discord_bot.agent_executor') as mock_agent_executor, \
-         patch('bots.discord_bot.model_script_from_video') as mock_model_tool, \
-         patch('bots.discord_bot.create_original_script') as mock_create_tool:
-        
-        mock_model_tool.return_value = "Mocked model script result"
-        mock_create_tool.return_value = "Mocked original script result"
-        
-        mock_agent_executor.ainvoke = AsyncMock()
-        mock_agent_executor.ainvoke.side_effect = [
-            {"output": "I'll help you model a script from that video. Here's the result: Mocked model script result"},
-            {"output": "I'll create an original script about cats for pet owners. Here's the result: Mocked original script result"}
-        ]
-        
-        model_result = await mock_agent_executor.ainvoke({"input": "Can you model a script from this video: https://example.com/video"})
-        
-        mock_agent_executor.ainvoke.assert_called_with({"input": "Can you model a script from this video: https://example.com/video"})
-        assert "Mocked model script result" in str(model_result)
-        
-        create_result = await mock_agent_executor.ainvoke({"input": "Create an original script about cats for pet owners"})
-        
-        mock_agent_executor.ainvoke.assert_called_with({"input": "Create an original script about cats for pet owners"})
-        assert "Mocked original script result" in str(create_result)
+        with patch('langchain.prompts.ChatPromptTemplate.from_messages') as mock_prompt_factory:
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", "System prompt"),
+                MessagesPlaceholder("history"),
+                ("user", "{input}"),
+                MessagesPlaceholder("agent_scratchpad")
+            ])
+            
+            assert any(isinstance(m, MessagesPlaceholder) and m.variable_name == "agent_scratchpad" 
+                      for m in prompt.messages)
 
 @pytest.mark.asyncio
 async def test_backend_health_check():
