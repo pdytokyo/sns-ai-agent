@@ -127,8 +127,8 @@ jobs:
           host:        ${{ secrets.EC2_HOST }}
           port:        ${{ secrets.EC2_PORT }}
           username:    ${{ secrets.EC2_USER }}
-          key:         ${{ secrets.EC2_KEY }}        # base64-encoded
-          fingerprint: ${{ secrets.EC2_KNOWN_HOST }} # from ssh-keyscan
+          key:         ${{ secrets.EC2_KEY }}
+          key_is_b64:  true
           envs: DEPLOY_TAG
           script: |
             set -e
@@ -171,8 +171,8 @@ jobs:
           host:        ${{ secrets.EC2_HOST }}
           port:        ${{ secrets.EC2_PORT }}
           username:    ${{ secrets.EC2_USER }}
-          key:         ${{ secrets.EC2_KEY }}        # base64-encoded
-          fingerprint: ${{ secrets.EC2_KNOWN_HOST }} # from ssh-keyscan
+          key:         ${{ secrets.EC2_KEY }}
+          key_is_b64:  true
           script: |
             cd /opt/sns-ai-agent
             echo "Checking container status..."
