@@ -146,9 +146,12 @@ jobs:
         # Only run deploy if secrets are available
         if: ${{ env.HAS_GHCR_SECRETS == 'true' }}
         with:
-          host: ${{ secrets.EC2_HOST || '52.69.83.83' }}
-          username: ${{ secrets.EC2_USER || 'ubuntu' }}
-          key: ${{ secrets.EC2_KEY || secrets.SSH_PRIVATE_KEY }}
+          host:        ${{ secrets.EC2_HOST }}
+          port:        ${{ secrets.EC2_PORT }}
+          username:    ${{ secrets.EC2_USER }}
+          key:         ${{ secrets.EC2_KEY }}        # base64-encoded
+          key_is_b64:  true
+          known_hosts: ${{ secrets.EC2_KNOWN_HOST }} # from ssh-keyscan
           envs: DEPLOY_TAG
           script: |
             # Login to GitHub Container Registry
@@ -200,9 +203,12 @@ jobs:
         uses: appleboy/ssh-action@v0.1.7
         if: ${{ env.HAS_GHCR_SECRETS == 'true' }}
         with:
-          host: ${{ secrets.EC2_HOST || '52.69.83.83' }}
-          username: ${{ secrets.EC2_USER || 'ubuntu' }}
-          key: ${{ secrets.EC2_KEY || secrets.SSH_PRIVATE_KEY }}
+          host:        ${{ secrets.EC2_HOST }}
+          port:        ${{ secrets.EC2_PORT }}
+          username:    ${{ secrets.EC2_USER }}
+          key:         ${{ secrets.EC2_KEY }}        # base64-encoded
+          key_is_b64:  true
+          known_hosts: ${{ secrets.EC2_KNOWN_HOST }} # from ssh-keyscan
           script: |
             cd /opt/sns-ai-agent
             echo "Checking container status..."
