@@ -150,7 +150,7 @@ jobs:
           port:        ${{ secrets.EC2_PORT }}
           username:    ${{ secrets.EC2_USER }}
           key:         ${{ secrets.EC2_KEY }}
-          key_path:    null
+          key_is_b64:  true
           envs: DEPLOY_TAG
           script: |
             # Login to GitHub Container Registry
@@ -206,7 +206,7 @@ jobs:
           port:        ${{ secrets.EC2_PORT }}
           username:    ${{ secrets.EC2_USER }}
           key:         ${{ secrets.EC2_KEY }}
-          key_path:    null
+          key_is_b64:  true
           script: |
             cd /opt/sns-ai-agent
             echo "Checking container status..."
