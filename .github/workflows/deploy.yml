@@ -115,21 +115,17 @@ jobs:
     runs-on: ubuntu-latest
     # Only deploy if build was successful and it's a push event or a PR from the same repo
     if: ${{ needs.build.result == 'success' && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
-    env:
-      HAS_GHCR_SECRETS: ${{ secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
     steps:
       - name: Deploy to EC2
         id: deploy
         uses: appleboy/ssh-action@v0.1.7
-        # Only run deploy if secrets are available
-        if: ${{ env.HAS_GHCR_SECRETS == 'true' }}
         with:
           host:        ${{ secrets.EC2_HOST }}
           port:        ${{ secrets.EC2_PORT }}
           username:    ${{ secrets.EC2_USER }}
           key:         ${{ secrets.EC2_KEY }}
           key_is_b64:  true
-          envs: DEPLOY_TAG
+          known_hosts: ${{ secrets.EC2_KNOWN_HOST }}
           script: |
             set -e
             cd /opt/sns-ai-agent
@@ -173,6 +169,7 @@ jobs:
           username:    ${{ secrets.EC2_USER }}
           key:         ${{ secrets.EC2_KEY }}
           key_is_b64:  true
+          known_hosts: ${{ secrets.EC2_KNOWN_HOST }}
           script: |
             cd /opt/sns-ai-agent
             echo "Checking container status..."
