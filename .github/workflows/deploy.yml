@@ -149,9 +149,8 @@ jobs:
           host:        ${{ secrets.EC2_HOST }}
           port:        ${{ secrets.EC2_PORT }}
           username:    ${{ secrets.EC2_USER }}
-          key:         ${{ secrets.EC2_KEY }}        # base64-encoded
-          key_is_b64:  true
-          known_hosts: ${{ secrets.EC2_KNOWN_HOST }} # from ssh-keyscan
+          key:         ${{ secrets.EC2_KEY }}
+          fingerprint: ${{ secrets.EC2_KNOWN_HOST }}
           envs: DEPLOY_TAG
           script: |
             # Login to GitHub Container Registry
@@ -206,9 +205,8 @@ jobs:
           host:        ${{ secrets.EC2_HOST }}
           port:        ${{ secrets.EC2_PORT }}
           username:    ${{ secrets.EC2_USER }}
-          key:         ${{ secrets.EC2_KEY }}        # base64-encoded
-          key_is_b64:  true
-          known_hosts: ${{ secrets.EC2_KNOWN_HOST }} # from ssh-keyscan
+          key:         ${{ secrets.EC2_KEY }}
+          fingerprint: ${{ secrets.EC2_KNOWN_HOST }}
           script: |
             cd /opt/sns-ai-agent
             echo "Checking container status..."
