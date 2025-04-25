@@ -77,7 +77,14 @@ jobs:
       
       - name: Set tag
         id: tag
-        run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+        run: |
+          if [[ "${{ github.ref_name }}" == *"/"* ]]; then
+            # For PR branches, replace slashes with hyphens
+            TAG=$(echo "${{ github.ref_name }}" | tr '/' '-')
+            echo "TAG=$TAG" >> $GITHUB_ENV
+          else
+            echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+          fi
       
       - name: Build and push backend image
         uses: docker/build-push-action@v5
