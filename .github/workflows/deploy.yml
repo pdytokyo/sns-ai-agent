@@ -85,11 +85,11 @@ jobs:
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}/backend
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
-            type=raw,value=latest
-            type=ref,event=branch
-            type=ref,event=tag
+            type=raw,value=backend-latest
+            type=ref,event=branch,suffix=-backend
+            type=ref,event=tag,suffix=-backend
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5
@@ -103,11 +103,11 @@ jobs:
         id: meta-admin
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}/admin
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
-            type=raw,value=latest
-            type=ref,event=branch
-            type=ref,event=tag
+            type=raw,value=admin-latest
+            type=ref,event=branch,suffix=-admin
+            type=ref,event=tag,suffix=-admin
           
       - name: Build and push admin image
         uses: docker/build-push-action@v5
@@ -121,11 +121,11 @@ jobs:
         id: meta-discordbot
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}/discordbot
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
-            type=raw,value=latest
-            type=ref,event=branch
-            type=ref,event=tag
+            type=raw,value=discordbot-latest
+            type=ref,event=branch,suffix=-discordbot
+            type=ref,event=tag,suffix=-discordbot
           
       - name: Build and push discordbot image
         uses: docker/build-push-action@v5
