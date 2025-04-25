@@ -1,4 +1,4 @@
-name: Deploy to EC2
+name: CI/CD Pipeline
 
 on:
   push:
@@ -10,7 +10,6 @@ on:
     branches:
       - main
 
-# Add permissions for issue creation and package publishing
 permissions:
   contents: read
   issues: write
@@ -22,29 +21,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+          
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
           pip install -r requirements.txt
           pip install pytest pytest-asyncio
-      - name: Check for unresolved dependencies
-        run: |
-          python -m pip check
+          
       - name: Run linting
         run: |
           pip install flake8
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          
       - name: Test with pytest
         run: |
           pytest -q
+          
       - name: Initialize database
         run: |
           python init_database.py
+          
       - name: Upload test logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -58,15 +60,12 @@ jobs:
     name: Deploy to EC2
     needs: test
     runs-on: ubuntu-latest
-    # Only run deploy job for PRs from the same repository (not forks)
-    if: ${{ success() && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v3
       
       - name: Set deployment tag
-        id: set-tag
         run: |
-          # For PRs, use pr-{number} format instead of {number}/merge which contains invalid slash
           if [[ "${{ github.ref_name }}" == *"/"* ]]; then
             echo "DEPLOY_TAG=pr-$(echo ${{ github.ref_name }} | cut -d'/' -f1)" >> $GITHUB_ENV
           else
@@ -75,7 +74,6 @@ jobs:
           echo "Using tag: ${{ env.DEPLOY_TAG }}"
       
       - name: Deploy to EC2
-        id: deploy
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -106,35 +104,26 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d
       
       - name: Health Check
-        id: health_check
         run: |
           set -e
           
-          # Create log file for health check
-          mkdir -p logs
-          HEALTH_LOG="logs/health-$(date +%Y%m%d-%H%M%S).log"
-          
           # Wait for services to start
-          echo "Waiting 30 seconds for services to start..." | tee -a "$HEALTH_LOG"
+          echo "Waiting 30 seconds for services to start..."
           sleep 30
           
           # Check backend health
-          echo "Checking backend health..." | tee -a "$HEALTH_LOG"
+          echo "Checking backend health..."
           HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST }}:8000/health)
-          echo "Health status: $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
+          echo "Health status: $HEALTH_STATUS"
           
           if [ "$HEALTH_STATUS" != "200" ]; then
-            echo "Health check failed with status $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
-            echo "status=failed" >> $GITHUB_OUTPUT
-            echo "log_file=$HEALTH_LOG" >> $GITHUB_OUTPUT
+            echo "Health check failed with status $HEALTH_STATUS"
             exit 1
           else
-            echo "Health check passed with status $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
-            echo "status=success" >> $GITHUB_OUTPUT
+            echo "Health check passed with status $HEALTH_STATUS"
           fi
-          
-      - name: Check Docker Container Status
-        id: container_check
+      
+      - name: Check Container Status
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -158,76 +147,3 @@ jobs:
             else
               echo "Container check passed: All containers are running"
             fi
-      
-      - name: Upload deployment logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: deployment-logs
-          path: logs/
-      
-      - name: Create issue for deployment failure
-        if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs');
-            
-            // Determine which step failed
-            const deployFailed = "${{ steps.deploy.outputs.status }}" === "failed";
-            const healthCheckFailed = "${{ steps.health_check.outputs.status }}" === "failed";
-            
-            // Get log file path
-            const logFile = deployFailed 
-              ? "${{ steps.deploy.outputs.log_file }}"
-              : "${{ steps.health_check.outputs.log_file }}";
-            
-            // Read log file if it exists
-            let logContent = '';
-            try {
-              if (logFile) {
-                logContent = fs.readFileSync(logFile, 'utf8');
-                // Truncate if too long
-                if (logContent.length > 5000) {
-                  logContent = logContent.substring(0, 5000) + '... (truncated)';
-                }
-              }
-            } catch (error) {
-              console.error(`Error reading log file: ${error}`);
-            }
-            
-            // Create issue title based on failure type
-            const title = deployFailed
-              ? '🚨 Deployment to EC2 failed'
-              : '🚨 Health check failed after deployment';
-            
-            // Create issue body
-            const body = `
-            ## Deployment Failure Report
-            
-            A deployment to EC2 has failed in the [${context.workflow}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) workflow.
-            
-            ### Failure Details
-            - **Commit**: [${context.sha.substring(0, 7)}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/commit/${context.sha})
-            - **Workflow Run**: [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
-            - **Failed Step**: ${deployFailed ? 'Deployment to EC2' : 'Health Check'}
-            
-            ### Error Logs
-            \`\`\`
-            ${logContent}
-            \`\`\`
-            
-            @devin-ai-integration please investigate this issue and create a PR with fixes.
-            `;
-            
-            // Create the issue
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              labels: ['bug', 'deployment', 'automated']
-            });
-            
-            console.log(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
