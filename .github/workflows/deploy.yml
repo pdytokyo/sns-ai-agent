@@ -49,8 +49,13 @@ jobs:
           username: ${{ secrets.GHCR_USERNAME }}
           password: ${{ secrets.GHCR_PAT }}
 
-      - id: tag
-        run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Prepare tag
+        id: tag
+        run: |
+          RAW_TAG=${{ github.ref_name }}
+          SAFE_TAG=${RAW_TAG//\//-}
+          echo "TAG=$SAFE_TAG" >> $GITHUB_ENV
+          echo "Using sanitized tag: $SAFE_TAG"
 
       - uses: docker/build-push-action@v5
         with:
@@ -93,10 +98,15 @@ jobs:
           envs:     DEPLOY_TAG
           script: |
             set -e
+            echo "DEBUG TAG=$DEPLOY_TAG"
             cd /opt/sns-ai-agent
             docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
-            TAG=$DEPLOY_TAG docker compose -f docker-compose.prod.yml pull backend admin discordbot
-            TAG=$DEPLOY_TAG docker compose -f docker-compose.prod.yml up -d
+            TAG=$DEPLOY_TAG
+            TAG=${TAG//\//-}
+            export TAG
+            echo "Using sanitized TAG=$TAG"
+            docker compose -f docker-compose.prod.yml pull backend admin discordbot
+            docker compose -f docker-compose.prod.yml up -d
 
       - name: Health-check
         run: |
