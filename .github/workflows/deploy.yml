@@ -86,11 +86,11 @@ jobs:
             echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
           fi
       
-      - name: Set lowercase repository name
-        id: repo-name
+      - name: Extract repository owner
+        id: repo-owner
         run: |
-          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "REPO_LOWER=$REPO_LOWER" >> $GITHUB_ENV
+          REPO_OWNER=$(echo "${{ github.repository }}" | cut -d '/' -f 1 | tr '[:upper:]' '[:lower:]')
+          echo "REPO_OWNER=$REPO_OWNER" >> $GITHUB_ENV
       
       - name: Build and push backend image
         uses: docker/build-push-action@v5
@@ -99,8 +99,8 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ env.REPO_LOWER }}/backend:${{ github.sha }}
-            ghcr.io/${{ env.REPO_LOWER }}/backend:${{ env.TAG }}
+            ghcr.io/${{ env.REPO_OWNER }}/backend:${{ github.sha }}
+            ghcr.io/${{ env.REPO_OWNER }}/backend:${{ env.TAG }}
           provenance: false
       
       - name: Build and push admin image
@@ -110,8 +110,8 @@ jobs:
           file: ./admin/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ env.REPO_LOWER }}/admin:${{ github.sha }}
-            ghcr.io/${{ env.REPO_LOWER }}/admin:${{ env.TAG }}
+            ghcr.io/${{ env.REPO_OWNER }}/admin:${{ github.sha }}
+            ghcr.io/${{ env.REPO_OWNER }}/admin:${{ env.TAG }}
           provenance: false
       
       - name: Build and push discordbot image
@@ -121,8 +121,8 @@ jobs:
           file: ./bots/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ env.REPO_LOWER }}/discordbot:${{ github.sha }}
-            ghcr.io/${{ env.REPO_LOWER }}/discordbot:${{ env.TAG }}
+            ghcr.io/${{ env.REPO_OWNER }}/discordbot:${{ github.sha }}
+            ghcr.io/${{ env.REPO_OWNER }}/discordbot:${{ env.TAG }}
           provenance: false
 
   deploy:
