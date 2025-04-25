@@ -59,11 +59,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     # Only run deploy job for PRs from the same repository (not forks)
-    if: |
-      success() && (
-        github.event_name == 'push' || 
-        (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
-      )
+    if: ${{ success() && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
     steps:
       - uses: actions/checkout@v3
       
@@ -171,7 +167,7 @@ jobs:
           path: logs/
       
       - name: Create issue for deployment failure
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
