@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: Deploy to EC2
 
 on:
   push:
@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
   packages: write
 
 jobs:
@@ -60,7 +59,8 @@ jobs:
     name: Deploy to EC2
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Always run for PRs from the same repository
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v3
       
