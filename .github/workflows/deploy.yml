@@ -51,8 +51,6 @@ jobs:
     name: Build and Push Docker Images
     needs: test
     runs-on: ubuntu-latest
-    # Only build if it's a push event or a PR from the same repo
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
     steps:
       - uses: actions/checkout@v3
       
@@ -114,8 +112,7 @@ jobs:
     name: Deploy to EC2
     needs: build
     runs-on: ubuntu-latest
-    # Only deploy if build was successful and it's a push event or a PR from the same repo
-    if: ${{ needs.build.result == 'success' && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
+    if: always() && needs.build.result == 'success'
     steps:
       - name: Set deployment tag
         id: set-tag
