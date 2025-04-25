@@ -99,8 +99,8 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ env.REPO_OWNER }}/backend:${{ github.sha }}
-            ghcr.io/${{ env.REPO_OWNER }}/backend:${{ env.TAG }}
+            ghcr.io/${{ env.REPO_OWNER }}/sns-ai-agent/backend:${{ github.sha }}
+            ghcr.io/${{ env.REPO_OWNER }}/sns-ai-agent/backend:${{ env.TAG }}
           provenance: false
       
       - name: Build and push admin image
@@ -110,8 +110,8 @@ jobs:
           file: ./admin/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ env.REPO_OWNER }}/admin:${{ github.sha }}
-            ghcr.io/${{ env.REPO_OWNER }}/admin:${{ env.TAG }}
+            ghcr.io/${{ env.REPO_OWNER }}/sns-ai-agent/admin:${{ github.sha }}
+            ghcr.io/${{ env.REPO_OWNER }}/sns-ai-agent/admin:${{ env.TAG }}
           provenance: false
       
       - name: Build and push discordbot image
@@ -121,8 +121,8 @@ jobs:
           file: ./bots/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ env.REPO_OWNER }}/discordbot:${{ github.sha }}
-            ghcr.io/${{ env.REPO_OWNER }}/discordbot:${{ env.TAG }}
+            ghcr.io/${{ env.REPO_OWNER }}/sns-ai-agent/discordbot:${{ github.sha }}
+            ghcr.io/${{ env.REPO_OWNER }}/sns-ai-agent/discordbot:${{ env.TAG }}
           provenance: false
 
   deploy:

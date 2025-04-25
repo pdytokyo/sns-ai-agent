@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    image: ghcr.io/pdytokyo/backend:${TAG:-latest}
+    image: ghcr.io/pdytokyo/sns-ai-agent/backend:${TAG:-latest}
     ports:
       - "8000:8000"
     volumes:
@@ -14,7 +14,7 @@ services:
     restart: unless-stopped
 
   admin:
-    image: ghcr.io/pdytokyo/admin:${TAG:-latest}
+    image: ghcr.io/pdytokyo/sns-ai-agent/admin:${TAG:-latest}
     ports:
       - "8501:8501"
     volumes:
@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
     
   discordbot:
-    image: ghcr.io/pdytokyo/discordbot:${TAG:-latest}
+    image: ghcr.io/pdytokyo/sns-ai-agent/discordbot:${TAG:-latest}
     environment:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
