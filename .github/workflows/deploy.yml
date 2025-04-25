@@ -50,7 +50,12 @@ jobs:
           password: ${{ secrets.GHCR_PAT }}
 
       - id: tag
-        run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "TAG=pr-${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+          else
+            echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+          fi
 
       - uses: docker/build-push-action@v5
         with:
