@@ -65,6 +65,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    
+    env:
+      REGISTRY: ghcr.io
 
     steps:
       - uses: actions/checkout@v4
@@ -72,32 +75,65 @@ jobs:
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: docker/setup-buildx-action@v3
+      
+      - name: Extract metadata (tags, labels) for backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/backend
+          tags: |
+            type=raw,value=latest
+            type=ref,event=branch
+            type=ref,event=tag
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/sns-ai-agent:backend-latest
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          
+      - name: Extract metadata (tags, labels) for admin
+        id: meta-admin
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/admin
+          tags: |
+            type=raw,value=latest
+            type=ref,event=branch
+            type=ref,event=tag
           
       - name: Build and push admin image
         uses: docker/build-push-action@v5
         with:
           context: ./admin
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/sns-ai-agent:admin-latest
+          tags: ${{ steps.meta-admin.outputs.tags }}
+          labels: ${{ steps.meta-admin.outputs.labels }}
+          
+      - name: Extract metadata (tags, labels) for discordbot
+        id: meta-discordbot
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/discordbot
+          tags: |
+            type=raw,value=latest
+            type=ref,event=branch
+            type=ref,event=tag
           
       - name: Build and push discordbot image
         uses: docker/build-push-action@v5
         with:
           context: ./bots
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/sns-ai-agent:discordbot-latest
+          tags: ${{ steps.meta-discordbot.outputs.tags }}
+          labels: ${{ steps.meta-discordbot.outputs.labels }}
 
   deploy:
     name: Deploy to EC2
