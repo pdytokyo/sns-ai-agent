@@ -53,8 +53,6 @@ jobs:
     runs-on: ubuntu-latest
     # Only build if it's a push event or a PR from the same repo
     if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
-    env:
-      HAS_GHCR_SECRETS: ${{ secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
     steps:
       - uses: actions/checkout@v3
       
@@ -63,12 +61,10 @@ jobs:
       
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
-        # Only attempt login if secrets are available (typically not in PR builds from forks)
-        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && env.HAS_GHCR_SECRETS == 'true') }}
         with:
           registry: ghcr.io
-          username: ${{ secrets.GHCR_USERNAME }}
-          password: ${{ secrets.GHCR_PAT }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Set build tag
         id: set-build-tag
@@ -83,41 +79,35 @@ jobs:
           
       - name: Build and push backend image
         uses: docker/build-push-action@v5
-        # Only attempt push if secrets are available
-        if: ${{ github.event_name != 'pull_request' || env.HAS_GHCR_SECRETS == 'true' }}
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          # Only push if not a PR and secrets are available
-          push: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' }}
-          # Only add tags if pushing
-          tags: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' && format('ghcr.io/{0}/backend:{1},ghcr.io/{0}/backend:{2}', github.repository, github.sha, env.BUILD_TAG) || '' }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/backend:${{ env.BUILD_TAG }}
           provenance: false
       
       - name: Build and push admin image
         uses: docker/build-push-action@v5
-        # Only attempt push if secrets are available
-        if: ${{ github.event_name != 'pull_request' || env.HAS_GHCR_SECRETS == 'true' }}
         with:
           context: ./admin
           file: ./admin/Dockerfile
-          # Only push if not a PR and secrets are available
-          push: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' }}
-          # Only add tags if pushing
-          tags: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' && format('ghcr.io/{0}/admin:{1},ghcr.io/{0}/admin:{2}', github.repository, github.sha, env.BUILD_TAG) || '' }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/admin:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/admin:${{ env.BUILD_TAG }}
           provenance: false
       
       - name: Build and push discordbot image
         uses: docker/build-push-action@v5
-        # Only attempt push if secrets are available
-        if: ${{ github.event_name != 'pull_request' || env.HAS_GHCR_SECRETS == 'true' }}
         with:
           context: ./bots
           file: ./bots/Dockerfile
-          # Only push if not a PR and secrets are available
-          push: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' }}
-          # Only add tags if pushing
-          tags: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' && format('ghcr.io/{0}/discordbot:{1},ghcr.io/{0}/discordbot:{2}', github.repository, github.sha, env.BUILD_TAG) || '' }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/discordbot:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/discordbot:${{ env.BUILD_TAG }}
           provenance: false
 
   deploy:
@@ -126,8 +116,6 @@ jobs:
     runs-on: ubuntu-latest
     # Only deploy if build was successful and it's a push event or a PR from the same repo
     if: ${{ needs.build.result == 'success' && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
-    env:
-      HAS_GHCR_SECRETS: ${{ secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
     steps:
       - name: Set deployment tag
         id: set-tag
@@ -143,15 +131,17 @@ jobs:
       - name: Deploy to EC2
         id: deploy
         uses: appleboy/ssh-action@v0.1.7
-        # Only run deploy if secrets are available
-        if: ${{ env.HAS_GHCR_SECRETS == 'true' }}
         with:
-          host:        ${{ secrets.EC2_HOST }}
-          port:        ${{ secrets.EC2_PORT }}
-          username:    ${{ secrets.EC2_USER }}
-          key:         ${{ secrets.EC2_KEY }}
+          host: ${{ secrets.EC2_HOST }}
+          port: ${{ secrets.EC2_PORT }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          key_is_b64: true
+          known_hosts: ${{ secrets.EC2_KNOWN_HOST }}
           envs: DEPLOY_TAG
           script: |
+            set -e
+            
             # Login to GitHub Container Registry
             docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
             
@@ -173,6 +163,8 @@ jobs:
       - name: Health Check
         id: health_check
         run: |
+          set -e
+          
           # Create log file for health check
           mkdir -p logs
           HEALTH_LOG="logs/health-$(date +%Y%m%d-%H%M%S).log"
@@ -183,7 +175,7 @@ jobs:
           
           # Check backend health
           echo "Checking backend health..." | tee -a "$HEALTH_LOG"
-          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST || '52.69.83.83' }}:8000/health)
+          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST }}:8000/health)
           echo "Health status: $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
           
           if [ "$HEALTH_STATUS" != "200" ]; then
@@ -199,13 +191,16 @@ jobs:
       - name: Check Docker Container Status
         id: container_check
         uses: appleboy/ssh-action@v0.1.7
-        if: ${{ env.HAS_GHCR_SECRETS == 'true' }}
         with:
-          host:        ${{ secrets.EC2_HOST }}
-          port:        ${{ secrets.EC2_PORT }}
-          username:    ${{ secrets.EC2_USER }}
-          key:         ${{ secrets.EC2_KEY }}
+          host: ${{ secrets.EC2_HOST }}
+          port: ${{ secrets.EC2_PORT }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          key_is_b64: true
+          known_hosts: ${{ secrets.EC2_KNOWN_HOST }}
           script: |
+            set -e
+            
             cd /opt/sns-ai-agent
             echo "Checking container status..."
             CONTAINER_STATUS=$(docker compose ps --format json)
