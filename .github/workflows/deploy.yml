@@ -2,15 +2,11 @@ name: Deploy to EC2
 
 on:
   push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+    branches: [main]
+    tags: ['v*']
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
-# Add permissions for issue creation and package publishing
 permissions:
   contents: read
   issues: write
@@ -22,8 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
       - name: Install dependencies
@@ -32,260 +27,73 @@ jobs:
           pip install -r backend/requirements.txt
           pip install -r requirements.txt
           pip install pytest pytest-asyncio
-      - name: Check for unresolved dependencies
-        run: |
-          python -m pip check
-      - name: Test with pytest
-        run: |
-          pytest -q
-      - name: Upload test logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs
-          path: |
-            pytest-logs.xml
-            .pytest_cache/
+      - run: python -m pip check
+      - run: pytest -q
 
   build:
-    name: Build and Push Docker Images
+    name: Build & Push Docker Images
     needs: test
     runs-on: ubuntu-latest
-    # Only build if it's a push event or a PR from the same repo
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
-    env:
-      HAS_GHCR_SECRETS: ${{ secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
+    if: ${{ github.event_name == 'push' ||
+            github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v3
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        # Only attempt login if secrets are available (typically not in PR builds from forks)
-        if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && env.HAS_GHCR_SECRETS == 'true') }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ secrets.GHCR_USERNAME }}
           password: ${{ secrets.GHCR_PAT }}
-      
-      - name: Set build tag
-        id: set-build-tag
-        run: |
-          # For PRs, use pr-{number} format instead of {number}/merge which contains invalid slash
-          if [[ "${{ github.ref_name }}" == *"/"* ]]; then
-            echo "BUILD_TAG=pr-$(echo ${{ github.ref_name }} | cut -d'/' -f1)" >> $GITHUB_ENV
-          else
-            echo "BUILD_TAG=${{ github.ref_name }}" >> $GITHUB_ENV
-          fi
-          echo "Using build tag: ${{ env.BUILD_TAG }}"
-          
-      - name: Build and push backend image
-        uses: docker/build-push-action@v5
-        # Only attempt push if secrets are available
-        if: ${{ github.event_name != 'pull_request' || env.HAS_GHCR_SECRETS == 'true' }}
+      - id: tag
+        run: echo "TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+      - uses: docker/build-push-action@v5
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          # Only push if not a PR and secrets are available
-          push: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' }}
-          # Only add tags if pushing
-          tags: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' && format('ghcr.io/{0}/backend:{1},ghcr.io/{0}/backend:{2}', github.repository, github.sha, env.BUILD_TAG) || '' }}
+          push: true
+          tags: ghcr.io/${{ github.repository }}/backend:${{ env.TAG }}
           provenance: false
-      
-      - name: Build and push admin image
-        uses: docker/build-push-action@v5
-        # Only attempt push if secrets are available
-        if: ${{ github.event_name != 'pull_request' || env.HAS_GHCR_SECRETS == 'true' }}
+      - uses: docker/build-push-action@v5
         with:
           context: ./admin
           file: ./admin/Dockerfile
-          # Only push if not a PR and secrets are available
-          push: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' }}
-          # Only add tags if pushing
-          tags: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' && format('ghcr.io/{0}/admin:{1},ghcr.io/{0}/admin:{2}', github.repository, github.sha, env.BUILD_TAG) || '' }}
+          push: true
+          tags: ghcr.io/${{ github.repository }}/admin:${{ env.TAG }}
           provenance: false
-      
-      - name: Build and push discordbot image
-        uses: docker/build-push-action@v5
-        # Only attempt push if secrets are available
-        if: ${{ github.event_name != 'pull_request' || env.HAS_GHCR_SECRETS == 'true' }}
+      - uses: docker/build-push-action@v5
         with:
           context: ./bots
           file: ./bots/Dockerfile
-          # Only push if not a PR and secrets are available
-          push: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' }}
-          # Only add tags if pushing
-          tags: ${{ github.event_name != 'pull_request' && env.HAS_GHCR_SECRETS == 'true' && format('ghcr.io/{0}/discordbot:{1},ghcr.io/{0}/discordbot:{2}', github.repository, github.sha, env.BUILD_TAG) || '' }}
+          push: true
+          tags: ghcr.io/${{ github.repository }}/discordbot:${{ env.TAG }}
           provenance: false
 
   deploy:
     name: Deploy to EC2
     needs: build
     runs-on: ubuntu-latest
-    # Only deploy if build was successful and it's a push event or a PR from the same repo
-    if: ${{ needs.build.result == 'success' && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
-    env:
-      HAS_GHCR_SECRETS: ${{ secrets.GHCR_USERNAME != '' && secrets.GHCR_PAT != '' }}
     steps:
-      - name: Set deployment tag
-        id: set-tag
-        run: |
-          # For PRs, use pr-{number} format instead of {number}/merge which contains invalid slash
-          if [[ "${{ github.ref_name }}" == *"/"* ]]; then
-            echo "DEPLOY_TAG=pr-$(echo ${{ github.ref_name }} | cut -d'/' -f1)" >> $GITHUB_ENV
-          else
-            echo "DEPLOY_TAG=${{ github.ref_name }}" >> $GITHUB_ENV
-          fi
-          echo "Using tag: ${{ env.DEPLOY_TAG }}"
-      
-      - name: Deploy to EC2
-        id: deploy
+      - id: set-tag
+        run: echo "DEPLOY_TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.7
-        # Only run deploy if secrets are available
-        if: ${{ env.HAS_GHCR_SECRETS == 'true' }}
         with:
-          host: ${{ secrets.EC2_HOST || '52.69.83.83' }}
-          username: ${{ secrets.EC2_USER || 'ubuntu' }}
-          key: ${{ secrets.EC2_KEY || secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_TAG
+          host:         ${{ secrets.EC2_HOST }}
+          port:         ${{ secrets.EC2_PORT }}
+          username:     ${{ secrets.EC2_USER }}
+          key:          ${{ secrets.EC2_KEY }}          # PEM そのまま
+          key_is_b64:   false                          # ← ここがポイント
+          known_hosts:  ${{ secrets.EC2_KNOWN_HOST }}  # ssh-keyscan の 1 行
+          envs:         DEPLOY_TAG
           script: |
-            # Login to GitHub Container Registry
-            docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} -p ${{ secrets.GHCR_PAT }}
-            
-            # Clean up old Docker images
-            docker system prune -af --volumes --filter "until=24h" || true
-            
-            # Deploy the application
+            set -e
             cd /opt/sns-ai-agent
-            
-            # Set the TAG environment variable for docker-compose
-            export TAG=$DEPLOY_TAG
-            
-            # Pull the latest images
-            docker compose pull backend admin discordbot
-            
-            # Start the containers using production compose file
-            docker compose -f docker-compose.prod.yml up -d
-      
-      - name: Health Check
-        id: health_check
+            docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+            TAG=$DEPLOY_TAG docker compose -f docker-compose.prod.yml pull backend admin discordbot
+            TAG=$DEPLOY_TAG docker compose -f docker-compose.prod.yml up -d
+
+      - name: Health-check
         run: |
-          # Create log file for health check
-          mkdir -p logs
-          HEALTH_LOG="logs/health-$(date +%Y%m%d-%H%M%S).log"
-          
-          # Wait for services to start
-          echo "Waiting 30 seconds for services to start..." | tee -a "$HEALTH_LOG"
-          sleep 30
-          
-          # Check backend health
-          echo "Checking backend health..." | tee -a "$HEALTH_LOG"
-          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST || '52.69.83.83' }}:8000/health)
-          echo "Health status: $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
-          
-          if [ "$HEALTH_STATUS" != "200" ]; then
-            echo "Health check failed with status $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
-            echo "status=failed" >> $GITHUB_OUTPUT
-            echo "log_file=$HEALTH_LOG" >> $GITHUB_OUTPUT
-            exit 1
-          else
-            echo "Health check passed with status $HEALTH_STATUS" | tee -a "$HEALTH_LOG"
-            echo "status=success" >> $GITHUB_OUTPUT
-          fi
-          
-      - name: Check Docker Container Status
-        id: container_check
-        uses: appleboy/ssh-action@v0.1.7
-        if: ${{ env.HAS_GHCR_SECRETS == 'true' }}
-        with:
-          host: ${{ secrets.EC2_HOST || '52.69.83.83' }}
-          username: ${{ secrets.EC2_USER || 'ubuntu' }}
-          key: ${{ secrets.EC2_KEY || secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd /opt/sns-ai-agent
-            echo "Checking container status..."
-            CONTAINER_STATUS=$(docker compose ps --format json)
-            echo "$CONTAINER_STATUS"
-            
-            # Check if all containers are running
-            if ! echo "$CONTAINER_STATUS" | grep -q '"State":"running"'; then
-              echo "Container check failed: Not all containers are running"
-              exit 1
-            else
-              echo "Container check passed: All containers are running"
-            fi
-      
-      - name: Upload deployment logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: deployment-logs
-          path: logs/
-      
-      - name: Create issue for deployment failure
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs');
-            
-            // Determine which step failed
-            const deployFailed = "${{ steps.deploy.outputs.status }}" === "failed";
-            const healthCheckFailed = "${{ steps.health_check.outputs.status }}" === "failed";
-            
-            // Get log file path
-            const logFile = deployFailed 
-              ? "${{ steps.deploy.outputs.log_file }}"
-              : "${{ steps.health_check.outputs.log_file }}";
-            
-            // Read log file if it exists
-            let logContent = '';
-            try {
-              if (logFile) {
-                logContent = fs.readFileSync(logFile, 'utf8');
-                // Truncate if too long
-                if (logContent.length > 5000) {
-                  logContent = logContent.substring(0, 5000) + '... (truncated)';
-                }
-              }
-            } catch (error) {
-              console.error(`Error reading log file: ${error}`);
-            }
-            
-            // Create issue title based on failure type
-            const title = deployFailed
-              ? '🚨 Deployment to EC2 failed'
-              : '🚨 Health check failed after deployment';
-            
-            // Create issue body
-            const body = `
-            ## Deployment Failure Report
-            
-            A deployment to EC2 has failed in the [${context.workflow}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) workflow.
-            
-            ### Failure Details
-            - **Commit**: [${context.sha.substring(0, 7)}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/commit/${context.sha})
-            - **Workflow Run**: [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
-            - **Failed Step**: ${deployFailed ? 'Deployment to EC2' : 'Health Check'}
-            
-            ### Error Logs
-            \`\`\`
-            ${logContent}
-            \`\`\`
-            
-            @devin-ai-integration please investigate this issue and create a PR with fixes.
-            `;
-            
-            // Create the issue
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              labels: ['bug', 'deployment', 'automated']
-            });
-            
-            console.log(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
+          echo "Waiting 30 s …"; sleep 30
+          curl -f http://52.69.83.83:8000/health
