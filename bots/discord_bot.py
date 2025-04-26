@@ -63,6 +63,7 @@ tools = [model_script_from_video, create_original_script]
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", """You are an AI assistant that helps create scripts for social media videos.
+    ("assistant", "{agent_scratchpad}"),
     You can generate scripts based on existing videos or create original scripts.
     
     When a user asks you to model a script from a video, use the model_script_from_video tool.
