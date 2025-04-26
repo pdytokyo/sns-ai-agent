@@ -50,7 +50,11 @@ jobs:
           password: ${{ secrets.GHCR_PAT }}
 
       - id: tag
-        run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+        run: |
+          # Sanitize tag by replacing slashes with hyphens
+          TAG="${{ github.ref_name }}"
+          TAG=${TAG//\//-}
+          echo "TAG=$TAG" >> $GITHUB_ENV
 
       - uses: docker/build-push-action@v5
         with:
@@ -89,17 +93,28 @@ jobs:
           host:     ${{ secrets.EC2_HOST }}
           port:     ${{ secrets.EC2_PORT }}
           username: ${{ secrets.EC2_USER }}
-          key:      ${{ secrets.EC2_KEY }}   # PEM そのまま
+          key:      ${{ secrets.EC2_KEY }}
           envs:     DEPLOY_TAG
           script: |
             set -e
             cd /opt/sns-ai-agent
-            docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
-            TAG=$DEPLOY_TAG docker compose -f docker-compose.prod.yml pull backend admin discordbot
-            TAG=$DEPLOY_TAG docker compose -f docker-compose.prod.yml up -d
+            docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} -p ${{ secrets.GHCR_PAT }}
+            docker system prune -af --filter "until=24h"
+            TAG=${DEPLOY_TAG//\//-}
+            export TAG
+            docker compose -f docker-compose.prod.yml pull backend admin discordbot
+            docker compose -f docker-compose.prod.yml up -d
 
       - name: Health-check
-        run: |
-          echo "Waiting 30 s …"
-          sleep 30
-          curl -f http://${{ secrets.EC2_HOST }}:8000/health
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          port:     ${{ secrets.EC2_PORT }}
+          username: ${{ secrets.EC2_USER }}
+          key:      ${{ secrets.EC2_KEY }}
+          script: |
+            set -e
+            echo "Waiting 30s for services to start..."
+            sleep 30
+            curl -f http://localhost:8000/health || exit 1
+            echo "Health check passed!"
