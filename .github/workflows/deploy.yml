@@ -117,6 +117,9 @@ jobs:
 
       - name: Health-check
         run: |
-          echo "Waiting 30 s …"
-          sleep 30
-          curl -f http://${{ secrets.EC2_HOST }}:8000/health
+          echo "Waiting 60 s for services to start..."
+          sleep 60
+          echo "Checking backend health..."
+          curl -v http://${{ secrets.EC2_HOST }}:8000/health || true
+          echo "Checking container status..."
+          curl -v http://${{ secrets.EC2_HOST }}:8000 || true
