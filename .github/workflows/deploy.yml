@@ -115,6 +115,9 @@ jobs:
           key:      ${{ secrets.EC2_KEY }}
           script: |
             set -e
+            echo "Checking backend container logs..."
+            docker logs sns-ai-agent-backend-1
+            
             echo "Retrying health check ..."
             for i in {1..20}; do           # 200 秒まで待つ
               if curl -sf http://localhost:8000/health; then
@@ -123,6 +126,15 @@ jobs:
               fi
               echo "❌ attempt $i/20 failed — waiting 10s"
               sleep 10
+              
+              # Check container status after each attempt
+              if [ $((i % 5)) -eq 0 ]; then
+                echo "Container status after $i attempts:"
+                docker ps | grep backend
+              fi
             done
+            
             echo "Health check failed after 200s"
+            echo "Final backend container logs:"
+            docker logs sns-ai-agent-backend-1
             exit 1
