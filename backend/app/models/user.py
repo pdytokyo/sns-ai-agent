@@ -3,7 +3,7 @@ from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 import uuid
 
-from backend.app.models import Base
+from . import Base
 
 if TYPE_CHECKING:
     from backend.app.models.client import Client

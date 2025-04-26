@@ -2,7 +2,7 @@ from sqlmodel import Field, SQLModel, Relationship
 from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 
-from backend.app.models import Base
+from . import Base
 
 if TYPE_CHECKING:
     from backend.app.models.user import User

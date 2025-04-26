@@ -2,8 +2,8 @@ from sqlmodel import Field, SQLModel, Relationship, Column, JSON
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-from backend.app.models import Base
-from backend.app.models.client import Client
+from . import Base
+from .client import Client
 
 class Report(SQLModel, Base, table=True):
     __tablename__ = "reports"

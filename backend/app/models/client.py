@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from datetime import datetime
 import json
 
-from backend.app.models import Base
+from . import Base
 
 if TYPE_CHECKING:
     from backend.app.models.user import User
