@@ -111,7 +111,7 @@ jobs:
           script: |
             set -e
             cd /opt/sns-ai-agent
-            docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+            docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GHCR_PAT }}
             TAG=$DEPLOY_TAG docker compose -f docker-compose.prod.yml pull backend admin discordbot
             TAG=$DEPLOY_TAG docker compose -f docker-compose.prod.yml up -d
 
