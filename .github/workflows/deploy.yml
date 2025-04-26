@@ -57,7 +57,7 @@ jobs:
           context:   ./backend
           file:      ./backend/Dockerfile
           push:      true
-          tags:      ghcr.io/${{ github.repository }}/backend:${{ env.TAG }}
+          tags:      ghcr.io/${{ github.repository }}/backend:latest
           provenance: false
 
       - uses: docker/build-push-action@v5
@@ -65,7 +65,7 @@ jobs:
           context:   ./admin
           file:      ./admin/Dockerfile
           push:      true
-          tags:      ghcr.io/${{ github.repository }}/admin:${{ env.TAG }}
+          tags:      ghcr.io/${{ github.repository }}/admin:latest
           provenance: false
 
       - uses: docker/build-push-action@v5
@@ -73,7 +73,7 @@ jobs:
           context:   ./bots
           file:      ./bots/Dockerfile
           push:      true
-          tags:      ghcr.io/${{ github.repository }}/discordbot:${{ env.TAG }}
+          tags:      ghcr.io/${{ github.repository }}/discordbot:latest
           provenance: false
 
   deploy:
