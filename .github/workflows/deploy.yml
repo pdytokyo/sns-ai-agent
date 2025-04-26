@@ -51,7 +51,12 @@ jobs:
 
       - name: Set tag
         id: tag
-        run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+        run: |
+          echo "DEBUG TAG=${{ github.ref_name }}" 
+          # Sanitize tag by replacing slashes with hyphens
+          TAG="${{ github.ref_name }}"
+          TAG=${TAG//\//-}
+          echo "TAG=$TAG" >> $GITHUB_ENV
 
       - uses: docker/build-push-action@v5
         with:
