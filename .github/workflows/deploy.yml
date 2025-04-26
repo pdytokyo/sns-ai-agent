@@ -50,7 +50,11 @@ jobs:
           password: ${{ secrets.GHCR_PAT }}
 
       - id: tag
-        run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+        run: |
+          # Sanitize tag by replacing slashes with hyphens
+          TAG="${{ github.ref_name }}"
+          TAG=${TAG//\//-}
+          echo "TAG=$TAG" >> $GITHUB_ENV
 
       - uses: docker/build-push-action@v5
         with:
