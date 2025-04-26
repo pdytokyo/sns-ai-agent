@@ -47,17 +47,20 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_PAT }}
 
-      - name: Set fixed tag for testing
-        run: echo "TAG=ci-auth-test" >> $GITHUB_ENV
+      - name: Set tag
+        id: tag
+        run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
 
       - uses: docker/build-push-action@v5
         with:
           context:   ./backend
           file:      ./backend/Dockerfile
           push:      true
-          tags:      ghcr.io/${{ github.repository }}/backend:latest
+          tags: |
+            ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/backend:${{ env.TAG }}
           provenance: false
 
       - uses: docker/build-push-action@v5
@@ -65,7 +68,9 @@ jobs:
           context:   ./admin
           file:      ./admin/Dockerfile
           push:      true
-          tags:      ghcr.io/${{ github.repository }}/admin:latest
+          tags: |
+            ghcr.io/${{ github.repository }}/admin:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/admin:${{ env.TAG }}
           provenance: false
 
       - uses: docker/build-push-action@v5
@@ -73,7 +78,9 @@ jobs:
           context:   ./bots
           file:      ./bots/Dockerfile
           push:      true
-          tags:      ghcr.io/${{ github.repository }}/discordbot:latest
+          tags: |
+            ghcr.io/${{ github.repository }}/discordbot:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/discordbot:${{ env.TAG }}
           provenance: false
 
   deploy:
