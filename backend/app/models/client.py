@@ -3,15 +3,15 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from datetime import datetime
 import json
 
-from backend.app.models import Base
+from . import Base
 
 if TYPE_CHECKING:
-    from backend.app.models.user import User
-    from backend.app.models.video import Video
-    from backend.app.models.post import Post
-    from backend.app.models.script import Script
-    from backend.app.models.report import Report
-    from backend.app.models.job_log import JobLog
+    from .user import User
+    from .video import Video
+    from .post import Post
+    from .script import Script
+    from .report import Report
+    from .job_log import JobLog
 
 class Client(SQLModel, Base, table=True):
     __tablename__ = "clients"
