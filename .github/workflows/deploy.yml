@@ -104,6 +104,7 @@ jobs:
             export TAG
             docker compose -f docker-compose.prod.yml pull backend admin discordbot
             docker compose -f docker-compose.prod.yml up -d
+            exit 0
 
       - name: Health-check
         uses: appleboy/ssh-action@v1.0.0
