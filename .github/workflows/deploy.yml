@@ -122,13 +122,23 @@ jobs:
           script: |
             set -e
             echo "Retrying health check ..."
+            # Check container logs to diagnose startup issues
+            echo "Backend container logs:"
+            docker logs $(docker ps -q --filter name=backend) || echo "Could not get backend logs"
+            
             for i in {1..20}; do
               if curl -sf http://localhost:8000/health; then
                 echo "✅ Health check passed!"
                 exit 0
               fi
               echo "❌ attempt $i/20 failed — waiting 10s"
+              # Show container status after each attempt
+              docker ps | grep backend || echo "Backend container not running"
               sleep 10
             done
+            
+            # Get final logs if health check fails
+            echo "Final backend container logs:"
+            docker logs $(docker ps -q --filter name=backend) || echo "Could not get backend logs"
             echo "Health check failed after 200s"
             exit 1
