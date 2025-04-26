@@ -1,7 +1,7 @@
 import os
 from sqlmodel import SQLModel, create_engine, Session
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sns_ai_saas.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/sns_ai_saas.db")
 
 engine = create_engine(
     DATABASE_URL, 
