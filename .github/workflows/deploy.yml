@@ -109,11 +109,16 @@ jobs:
           key:      ${{ secrets.EC2_KEY }}   # PEM そのまま
           envs:     DEPLOY_TAG
           script: |
-            set -e
+            set -ex
             cd /opt/sns-ai-agent
-            docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GHCR_PAT }}
-            TAG=$DEPLOY_TAG docker compose -f docker-compose.prod.yml pull backend admin discordbot
-            TAG=$DEPLOY_TAG docker compose -f docker-compose.prod.yml up -d
+            echo "RAW TAG=$DEPLOY_TAG"
+            TAG=${DEPLOY_TAG//\//-}
+            export TAG
+            docker --version
+            docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GHCR_PAT }} || exit 98
+            docker pull ghcr.io/${{ github.repository }}/backend:$TAG || exit 99
+            docker compose -f docker-compose.prod.yml pull backend admin discordbot || exit 100
+            TAG=$TAG docker compose -f docker-compose.prod.yml up -d || exit 101
 
       - name: Health-check
         run: |
