@@ -93,7 +93,7 @@ jobs:
           host:     ${{ secrets.EC2_HOST }}
           port:     ${{ secrets.EC2_PORT }}
           username: ${{ secrets.EC2_USER }}
-          key:      ${{ secrets.EC2_KEY }}   # PEM そのまま
+          key:      ${{ secrets.EC2_KEY }}
           envs:     DEPLOY_TAG
           script: |
             set -e
@@ -118,3 +118,4 @@ jobs:
             sleep 60
             curl -f http://localhost:8000/health || exit 1
             echo "Health check passed!"
+            exit 0
