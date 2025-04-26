@@ -99,7 +99,12 @@ jobs:
             set -e
             cd /opt/sns-ai-agent
             docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} -p ${{ secrets.GHCR_PAT }}
-            docker system prune -af --filter "until=24h"
+            # More aggressive cleanup to free disk space
+            docker system prune -af
+            docker volume prune -f
+            docker image prune -af
+            # Remove all unused images
+            docker rmi $(docker images -q) || true
             TAG=${DEPLOY_TAG//\//-}
             export TAG
             docker compose -f docker-compose.prod.yml pull backend admin discordbot
