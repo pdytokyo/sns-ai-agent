@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 class Video(SQLModel, Base, table=True):
     __tablename__ = "videos"
+    __table_args__ = {"extend_existing": True}
     
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str

@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 class Client(SQLModel, Base, table=True):
     __tablename__ = "clients"
+    __table_args__ = {"extend_existing": True}
     
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str

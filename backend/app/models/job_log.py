@@ -8,6 +8,7 @@ from .client import Client
 
 class JobLog(SQLModel, Base, table=True):
     __tablename__ = "job_logs"
+    __table_args__ = {"extend_existing": True}
     
     id: Optional[int] = Field(default=None, primary_key=True)
     job_type: str
