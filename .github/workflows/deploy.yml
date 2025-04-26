@@ -62,7 +62,7 @@ jobs:
           file:      ./backend/Dockerfile
           push:      true
           tags:      ghcr.io/${{ github.repository }}/backend:${{ env.TAG }}
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64
           provenance: false
 
       - uses: docker/build-push-action@v5
@@ -71,7 +71,7 @@ jobs:
           file:      ./admin/Dockerfile
           push:      true
           tags:      ghcr.io/${{ github.repository }}/admin:${{ env.TAG }}
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64
           provenance: false
 
       - uses: docker/build-push-action@v5
@@ -80,7 +80,7 @@ jobs:
           file:      ./bots/Dockerfile
           push:      true
           tags:      ghcr.io/${{ github.repository }}/discordbot:${{ env.TAG }}
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64
           provenance: false
 
   deploy:
