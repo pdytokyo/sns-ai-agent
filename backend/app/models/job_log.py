@@ -2,9 +2,9 @@ from sqlmodel import Field, SQLModel, Relationship
 from typing import Optional
 from datetime import datetime
 
-from backend.app.models import Base
-from backend.app.models.user import User
-from backend.app.models.client import Client
+from . import Base
+from .user import User
+from .client import Client
 
 class JobLog(SQLModel, Base, table=True):
     __tablename__ = "job_logs"
