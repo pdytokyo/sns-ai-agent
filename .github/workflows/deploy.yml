@@ -114,8 +114,13 @@ jobs:
           key:      ${{ secrets.EC2_KEY }}
           script: |
             set -e
-            echo "Waiting 60s for services to start..."
-            sleep 60
-            curl -f http://localhost:8000/health || exit 1
-            echo "Health check passed!"
-            exit 0
+            echo "Waiting for backend to become healthy..."
+            for i in {1..18}; do        # 180 秒までリトライ
+              if curl -fs http://localhost:8000/health >/dev/null; then
+                echo "Health check passed!"
+                exit 0
+              fi
+              echo "  ...not ready yet ($i)"
+              sleep 10
+            done
+            echo "Health check failed after 180s"; exit 1
