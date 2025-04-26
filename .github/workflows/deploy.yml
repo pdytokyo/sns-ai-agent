@@ -93,7 +93,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: set_tag
-        run: echo "DEPLOY_TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+        run: |
+          echo "DEBUG TAG=${{ github.ref_name }}"
+          # Sanitize tag by replacing slashes with hyphens
+          TAG="${{ github.ref_name }}"
+          TAG=${TAG//\//-}
+          echo "DEPLOY_TAG=$TAG" >> $GITHUB_ENV
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.0
