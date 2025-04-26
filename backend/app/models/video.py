@@ -2,14 +2,15 @@ from sqlmodel import Field, SQLModel, Relationship
 from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 
-from backend.app.models import Base
-from backend.app.models.client import Client
+from . import Base
+from .client import Client
 
 if TYPE_CHECKING:
-    from backend.app.models.post import Post
+    from .post import Post
 
 class Video(SQLModel, Base, table=True):
     __tablename__ = "videos"
+    __table_args__ = {"extend_existing": True}
     
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str

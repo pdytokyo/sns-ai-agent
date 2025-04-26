@@ -1,5 +1,3 @@
-from sqlmodel import SQLModel, create_engine
-from app.models import JobLog
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import os
