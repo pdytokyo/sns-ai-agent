@@ -62,7 +62,7 @@ jobs:
           file:      ./backend/Dockerfile
           push:      true
           tags:      ghcr.io/${{ github.repository }}/backend:${{ env.TAG }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           provenance: false
 
       - uses: docker/build-push-action@v5
@@ -71,7 +71,7 @@ jobs:
           file:      ./admin/Dockerfile
           push:      true
           tags:      ghcr.io/${{ github.repository }}/admin:${{ env.TAG }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           provenance: false
 
       - uses: docker/build-push-action@v5
@@ -80,7 +80,7 @@ jobs:
           file:      ./bots/Dockerfile
           push:      true
           tags:      ghcr.io/${{ github.repository }}/discordbot:${{ env.TAG }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           provenance: false
 
   deploy:
@@ -122,13 +122,13 @@ jobs:
           script: |
             set -e
             echo "Retrying health check ..."
-            for i in {1..10}; do
+            for i in {1..20}; do
               if curl -sf http://localhost:8000/health; then
                 echo "✅ Health check passed!"
                 exit 0
               fi
-              echo "❌ attempt $i/10 failed — waiting 15s"
-              sleep 15
+              echo "❌ attempt $i/20 failed — waiting 10s"
+              sleep 10
             done
-            echo "Health check failed after 10 attempts"
+            echo "Health check failed after 200s"
             exit 1
