@@ -107,16 +107,22 @@ jobs:
             exit 0
 
       - name: Health-check
-        run: |
-          set -e
-          echo "Retrying health check ..."
-          for i in {1..20}; do           # 200 秒まで待つ
-            if curl -sf http://localhost:8000/health; then
-              echo "✅ Health check passed!"
-              exit 0
-            fi
-            echo "❌ attempt $i/20 failed — waiting 10s"
-            sleep 10
-          done
-          echo "Health check failed after 200s"
-          exit 1
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          port:     ${{ secrets.EC2_PORT }}
+          username: ${{ secrets.EC2_USER }}
+          key:      ${{ secrets.EC2_KEY }}
+          script: |
+            set -e
+            echo "Retrying health check ..."
+            for i in {1..20}; do           # 200 秒まで待つ
+              if curl -sf http://localhost:8000/health; then
+                echo "✅ Health check passed!"
+                exit 0
+              fi
+              echo "❌ attempt $i/20 failed — waiting 10s"
+              sleep 10
+            done
+            echo "Health check failed after 200s"
+            exit 1
