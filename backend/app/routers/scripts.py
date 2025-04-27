@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 import os
 
 from ..database import get_session
@@ -74,10 +74,11 @@ async def create_original_script(
             detail=f"Failed to generate script: {str(e)}"
         )
 
+from ..models.competitor_schemas import GenerateScriptRequest
+
 @router.post("/generate", response_model=Dict[str, Any])
 async def generate_script(
-    pattern: str,
-    client_info: Dict[str, Any],
+    request: Union[GenerateScriptRequest, Dict[str, Any]],
     session: Session = Depends(get_session),
     current_user: Optional[User] = None
 ):
@@ -93,6 +94,10 @@ async def generate_script(
     """
     try:
         script_generator = ScriptGenerator()
+        
+        pattern = request.pattern if hasattr(request, 'pattern') else request.get('pattern')
+        client_info = request.client_info if hasattr(request, 'client_info') else request.get('client_info')
+        
         script_data = await script_generator.generate_script(pattern, client_info)
         
         return script_data

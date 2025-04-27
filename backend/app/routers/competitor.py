@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import os
 
 from ..database import get_session
@@ -15,9 +15,11 @@ router = APIRouter(
     tags=["competitor"]
 )
 
+from ..models.competitor_schemas import ScrapeRequest
+
 @router.post("/scrape", response_model=List[Dict[str, Any]])
 async def scrape_competitor_videos(
-    urls: List[str],
+    request: Union[ScrapeRequest, List[str]],
     session: Session = Depends(get_session),
     current_user: Optional[User] = None
 ):
@@ -32,6 +34,9 @@ async def scrape_competitor_videos(
     """
     try:
         scraper = VideoScraper()
+        
+        urls = request.urls if hasattr(request, 'urls') else request
+        
         results = await scraper.scrape_videos(urls)
         
         for result in results:
