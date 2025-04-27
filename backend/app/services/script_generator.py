@@ -23,7 +23,7 @@ class ScriptGenerator:
         Returns:
             Dict containing generated script and metadata
         """
-        if os.getenv("TESTING") == "true":
+        if os.getenv("TESTING") == "true" or os.getenv("TESTING") == "1":
             return {
                 "script": "This is a test script generated based on the pattern.",
                 "template_path": "data/templates/1.txt",
