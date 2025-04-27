@@ -44,7 +44,7 @@ def test_scrape_competitor_videos(mock_scrape):
     
     response = client.post(
         "/competitor/scrape",
-        json=["https://www.instagram.com/p/test123/"]
+        json={"urls": ["https://www.instagram.com/p/test123/"]}
     )
     
     assert response.status_code == 200
