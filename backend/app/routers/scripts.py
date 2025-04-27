@@ -19,8 +19,8 @@ router = APIRouter(
 @router.post("/modeling", response_model=Dict[str, Any])
 async def model_script_from_video(
     video_url: str,
-    current_user: Optional[User] = Depends(get_current_active_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = None
 ):
     """
     Generate a script and shot list based on a video URL.
@@ -50,8 +50,8 @@ async def model_script_from_video(
 async def create_original_script(
     keyword: str,
     persona: str,
-    current_user: Optional[User] = Depends(get_current_active_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = None
 ):
     """
     Generate an original script and shot list based on a keyword and persona.
@@ -78,8 +78,8 @@ async def create_original_script(
 async def generate_script(
     pattern: str,
     client_info: Dict[str, Any],
-    current_user: Optional[User] = Depends(get_current_active_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = None
 ):
     """
     Generate a script based on a pattern and client info using RAG

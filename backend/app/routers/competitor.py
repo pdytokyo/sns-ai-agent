@@ -18,8 +18,8 @@ router = APIRouter(
 @router.post("/scrape", response_model=List[Dict[str, Any]])
 async def scrape_competitor_videos(
     urls: List[str],
-    current_user: Optional[User] = Depends(get_current_active_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = None
 ):
     """
     Scrape competitor videos from TikTok and Instagram
@@ -50,8 +50,8 @@ async def scrape_competitor_videos(
 @router.post("/process/{video_id}", response_model=Dict[str, Any])
 async def process_competitor_video(
     video_id: int,
-    current_user: Optional[User] = Depends(get_current_active_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = None
 ):
     """
     Process a competitor video: download, transcribe, and add to FAISS index
