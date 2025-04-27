@@ -19,7 +19,7 @@ from ..models.competitor_schemas import ScrapeRequest
 
 @router.post("/scrape", response_model=List[Dict[str, Any]])
 async def scrape_competitor_videos(
-    request: Union[ScrapeRequest, List[str]],
+    request: List[str],
     session: Session = Depends(get_session),
     current_user: Optional[User] = None
 ):
@@ -35,9 +35,7 @@ async def scrape_competitor_videos(
     try:
         scraper = VideoScraper()
         
-        urls = request.urls if hasattr(request, 'urls') else request
-        
-        results = await scraper.scrape_videos(urls)
+        results = await scraper.scrape_videos(request)
         
         for result in results:
             video = CompetitorVideo(**result)

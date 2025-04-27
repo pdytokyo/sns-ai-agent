@@ -78,7 +78,7 @@ from ..models.competitor_schemas import GenerateScriptRequest
 
 @router.post("/generate", response_model=Dict[str, Any])
 async def generate_script(
-    request: Union[GenerateScriptRequest, Dict[str, Any]],
+    request: Dict[str, Any],
     session: Session = Depends(get_session),
     current_user: Optional[User] = None
 ):
@@ -95,12 +95,20 @@ async def generate_script(
     try:
         script_generator = ScriptGenerator()
         
-        pattern = request.pattern if hasattr(request, 'pattern') else request.get('pattern')
-        client_info = request.client_info if hasattr(request, 'client_info') else request.get('client_info')
+        pattern = request.get('pattern')
+        client_info = request.get('client_info')
+        
+        if not pattern or not client_info:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Missing required fields: pattern and client_info"
+            )
         
         script_data = await script_generator.generate_script(pattern, client_info)
         
         return script_data
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
