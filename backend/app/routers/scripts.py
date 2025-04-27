@@ -78,7 +78,7 @@ from ..models.competitor_schemas import GenerateScriptRequest
 
 @router.post("/generate", response_model=Dict[str, Any])
 async def generate_script(
-    request: Dict[str, Any],
+    request: Union[GenerateScriptRequest, Dict[str, Any]],
     session: Session = Depends(get_session),
     current_user: Optional[User] = None
 ):
@@ -95,8 +95,12 @@ async def generate_script(
     try:
         script_generator = ScriptGenerator()
         
-        pattern = request.get('pattern')
-        client_info = request.get('client_info')
+        if isinstance(request, GenerateScriptRequest):
+            pattern = request.pattern
+            client_info = request.client_info
+        else:
+            pattern = request.get('pattern')
+            client_info = request.get('client_info')
         
         if not pattern or not client_info:
             raise HTTPException(
